@@ -1,0 +1,1775 @@
+좋습니다.
+이제 Pay Worlds Litepaper v3에서 “PayPoint / 쌓음(saum)” 관련된 내용만 완전히 분리하여,
+
+📘 PayPoint (saum) Developer Documentation v1
+
+형태로 작성하겠습니다.
+
+이 문서는:
+
+마케팅 문서가 아니라
+
+IR 문서가 아니라
+
+실제 설계·구현 가능한 개발자 문서
+
+API·상태 모델·정산 연동·Settlement 연결·정책 구조까지 포함
+
+Payment Layer 전용 기술 문서
+
+입니다.
+
+📘 PayPoint (saum) Developer Documentation v1
+1. Overview
+1.1 정의
+
+PayPoint (saum)는 Pay Worlds Payment Layer에 속하는
+Application Credit Abstraction Layer이다.
+
+PayPoint는:
+
+자산이 아니다.
+
+증권이 아니다.
+
+담보가 아니다.
+
+스테이블코인이 아니다.
+
+PayPoint는:
+
+사용자 소비 경험을 위한 크레딧 단위이며,
+정산 자산과 분리된 Application-level credit이다.
+
+1.2 역할
+
+PayPoint는 다음을 수행한다:
+
+선불 크레딧 관리
+
+적립·사용 인터페이스
+
+바우처·상품권 발행
+
+가맹점 리워드 시스템
+
+정책 기반 소비 제한
+
+Settlement Layer와 혼합되지 않는다.
+
+2. Architectural Position
+User
+  ↓
+Pay Wallet
+  ↓
+PayPoint (saum)
+  ↓
+Payment Layer
+  ↓
+Settlement Layer
+
+PayPoint는:
+
+Settlement를 직접 수행하지 않는다.
+
+유동성 풀을 관리하지 않는다.
+
+리저브 정책을 실행하지 않는다.
+
+3. Core Concepts
+3.1 Credit Unit
+
+PayPoint는 다음 속성을 가진다:
+
+Non-interest bearing
+
+Non-yield
+
+Non-transferable (기본값)
+
+Application-scoped
+
+3.2 Credit Lifecycle
+ISSUED → HELD → SPENT → EXPIRED
+3.2.1 ISSUED
+
+이벤트 기반 적립
+
+프로모션 기반 발행
+
+선불 구매 기반 발행
+
+3.2.2 HELD
+
+사용자 Wallet 내 보관
+
+소비 대기 상태
+
+3.2.3 SPENT
+
+결제 시 차감
+
+Settlement Receipt 생성
+
+3.2.4 EXPIRED
+
+정책 기반 만료
+
+잔여 크레딧 소멸
+
+4. Data Model
+4.1 Core Entities
+User
+interface User {
+  user_id: string;
+  wallet_address?: string;
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+PayPointAccount
+interface PayPointAccount {
+  account_id: string;
+  user_id: string;
+  balance: bigint;
+  reserved_balance: bigint;
+  created_at: string;
+}
+PayPointTransaction
+interface PayPointTransaction {
+  tx_id: string;
+  account_id: string;
+  type: 'ISSUE' | 'SPEND' | 'EXPIRE' | 'ADJUST';
+  amount: bigint;
+  related_receipt_id?: string;
+  created_at: string;
+}
+5. API Specification
+5.1 Issue Credit
+POST /v1/paypoint/issue
+Body
+{
+  "user_id": "U123",
+  "amount": "5000",
+  "reason": "PROMOTION",
+  "expires_at": "2026-12-31T23:59:59Z"
+}
+Behavior
+
+balance 증가
+
+PayPointTransaction 생성
+
+5.2 Spend Credit
+POST /v1/paypoint/spend
+Body
+{
+  "user_id": "U123",
+  "amount": "2000",
+  "order_id": "ORDER_001"
+}
+Behavior
+
+balance 감소
+
+Settlement Layer에 Receipt 생성 요청
+
+PayPointTransaction 기록
+
+5.3 Get Balance
+GET /v1/paypoint/balance/{user_id}
+6. Settlement Integration
+6.1 Spend Flow
+User → PayPoint spend
+       ↓
+Payment Layer Execution
+       ↓
+Receipt 생성
+       ↓
+Settlement Layer (PayChain)
+
+PayPoint는:
+
+정산 금액 일부를 차감
+
+나머지 금액은 스테이블코인 등으로 결제
+
+6.2 Hybrid Payment Model
+
+예시:
+
+총 결제 금액 = 10,000 KRW
+
+PayPoint 사용 = 2,000
+
+Stable 결제 = 8,000
+
+Settlement Receipt에는:
+
+total_amount = 10,000
+
+paypoint_component = 2,000
+
+stable_component = 8,000
+
+로 기록된다.
+
+7. Policy Controls
+7.1 Spend Restrictions
+
+정책 예시:
+
+특정 가맹점만 사용 가능
+
+특정 상품군 제한
+
+하루 사용 한도
+
+사용자 등급별 제한
+
+{
+  "max_daily_spend": "50000",
+  "allowed_merchants": ["STORE_01"],
+  "category_restriction": ["FOOD"]
+}
+7.2 Expiry Policy
+
+fixed date
+
+rolling expiry
+
+inactivity-based expiry
+
+8. Security Model
+8.1 Threat Model
+
+이중 사용(Double Spend)
+
+API 재전송
+
+잔액 위조
+
+내부 조작
+
+8.2 Controls
+
+idempotency key
+
+append-only journal
+
+row-level lock
+
+transactional balance update
+
+9. On-chain Interaction (Optional)
+
+PayPoint는 기본적으로 오프체인 크레딧이다.
+
+그러나 필요 시:
+
+Anchor-based proof
+
+Hash commit
+
+NFT voucher issuance
+
+확장 가능.
+
+10. PCI Interaction
+
+PayPoint는 PCI와 동일하지 않다.
+
+PCI는:
+
+네트워크 참여 자산
+
+PayPoint는:
+
+소비 크레딧
+
+두 구조는 명확히 분리된다.
+
+11. Extension Possibilities
+
+Gift Card Engine
+
+Merchant-funded incentive pool
+
+Cross-merchant coalition
+
+Dynamic reward multiplier
+
+Tokenized loyalty bridge
+
+12. Design Principles
+
+PayPoint는:
+
+자산처럼 보이지 않아야 한다.
+
+이자/수익 약속을 포함하지 않는다.
+
+정산 로직과 분리된다.
+
+Settlement Layer에 의존하되 침범하지 않는다.
+
+Liquidity Layer와 독립적이다.
+
+결론
+
+PayPoint(saum)는:
+
+Payment Layer의 사용자 경험 계층이며,
+정산·유동성·자산 구조와 명확히 분리된
+Application-level credit system이다.
+
+그 역할은 경제 구조를 만들지 않고,
+경제 구조 위에서 사용자 경험을 설계하는 것이다.
+
+원하시면 다음으로:
+
+1️⃣ PayPoint 스마트컨트랙트 확장 설계
+2️⃣ Wallet UX 설계 문서
+3️⃣ DB 스키마 확장 + 마이그레이션
+4️⃣ IEUM/Chaum 연동 시나리오
+5️⃣ 기존 “moeum”에서 “saum”으로 리브랜딩 설계
+
+어느 방향으로 더 깊게 갈까요?
+
+계속
+
+좋습니다.
+이제 PayPoint(saum) 개발자 문서를 실제 구현 수준까지 더 내려가겠습니다.
+
+이번 파트는 다음을 포함합니다:
+
+🧠 내부 아키텍처 (Backend + Domain 구조)
+
+🗃 데이터베이스 상세 스키마 (실전용)
+
+🔄 상태 전이(State Machine) 상세 정의
+
+🔐 보안 및 동시성 제어 모델
+
+💳 Wallet 연동 및 Hybrid Payment Flow
+
+🧩 IEUM / Chaum / Settlement Layer와의 정확한 경계 정의
+
+🧪 테스트 전략 및 시뮬레이션 구조
+
+13. Backend Architecture (saum 전용)
+
+PayPoint는 Payment Layer의 일부이지만,
+별도 서비스로 운영하는 것이 바람직합니다.
+
+13.1 마이크로서비스 분리 권장 구조
+apps/
+  paypoint-api/
+  paypoint-worker/
+packages/
+  paypoint-domain/
+  paypoint-policy/
+  paypoint-sdk/
+13.2 역할 분리
+paypoint-api
+
+사용자 요청 처리
+
+잔액 조회
+
+적립/차감 요청
+
+정책 검증
+
+Settlement 연동 호출
+
+paypoint-worker
+
+만료 처리 배치
+
+비정상 거래 감지
+
+대량 발급 처리
+
+리포트 생성
+
+paypoint-domain
+
+잔액 계산 로직
+
+정책 적용 로직
+
+상태 전이 규칙
+
+불변식(Invariants)
+
+14. Domain Logic (핵심 설계)
+
+PayPoint는 반드시 이중지불이 불가능한 구조로 설계되어야 합니다.
+
+14.1 Account Invariants
+
+다음 조건은 항상 참이어야 합니다:
+
+balance >= 0
+reserved_balance >= 0
+balance - reserved_balance >= 0
+14.2 Spend Algorithm (원자적 처리)
+async function spend(userId: string, amount: bigint) {
+  return db.transaction(async (trx) => {
+    const account = await trx.selectForUpdate("paypoint_accounts", userId);
+
+    if (account.balance < amount) {
+      throw new Error("INSUFFICIENT_BALANCE");
+    }
+
+    account.balance -= amount;
+
+    await trx.update("paypoint_accounts", account);
+
+    await trx.insert("paypoint_transactions", {
+      type: "SPEND",
+      amount,
+      user_id: userId
+    });
+  });
+}
+
+핵심: SELECT FOR UPDATE + transaction block 필수
+
+15. 데이터베이스 상세 스키마 (Production Level)
+15.1 paypoint_accounts
+CREATE TABLE paypoint_accounts (
+  account_id UUID PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE,
+  balance NUMERIC(30,0) NOT NULL DEFAULT 0,
+  reserved_balance NUMERIC(30,0) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+15.2 paypoint_transactions
+CREATE TABLE paypoint_transactions (
+  tx_id UUID PRIMARY KEY,
+  account_id UUID REFERENCES paypoint_accounts(account_id),
+  type TEXT NOT NULL,
+  amount NUMERIC(30,0) NOT NULL,
+  order_id TEXT,
+  receipt_id TEXT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+15.3 paypoint_policies
+CREATE TABLE paypoint_policies (
+  policy_id TEXT,
+  version TEXT,
+  policy_json JSONB,
+  effective_from TIMESTAMPTZ,
+  PRIMARY KEY (policy_id, version)
+);
+16. State Machine (saum 내부)
+ISSUE
+  ↓
+ACTIVE
+  ↓
+(RESERVE)
+  ↓
+SPENT
+  ↓
+SETTLED
+
+또는
+
+ACTIVE → EXPIRED
+ACTIVE → ADJUSTED
+16.1 Reserved Balance 개념
+
+결제 진행 중:
+
+사용 요청
+
+reserved_balance 증가
+
+Settlement 완료 시 실제 차감
+
+실패 시 reserved 해제
+
+17. Hybrid Payment Flow
+17.1 결제 흐름 예시
+User → Pay Wallet
+     → PayPoint spend request
+     → Payment Layer execution
+     → Settlement receipt 생성
+     → Stable/PCI 결제 병행
+     → Settlement Anchor
+17.2 결제 구성 예시
+항목	금액
+총 결제	10,000
+PayPoint	2,000
+Stable	8,000
+
+Settlement Receipt:
+
+{
+  "total_amount": 10000,
+  "paypoint_component": 2000,
+  "stable_component": 8000
+}
+18. IEUM 및 Chaum과의 경계
+18.1 IEUM과의 관계
+
+IEUM은 PayPoint 잔액을 직접 조작하지 않는다.
+
+IEUM은:
+
+정산 완료 여부 확인
+
+Receipt 기반 회계 확정
+
+PayPoint는 Receipt 생성 이전까지만 관여.
+
+18.2 Chaum과의 관계
+
+Chaum은:
+
+리저브 구조
+
+유동성 풀
+
+PayPoint는 리저브에 직접 연결되지 않는다.
+
+단, 정책에 따라:
+
+일부 수수료를 리저브로 전환 가능
+
+19. 보안 모델
+19.1 공격 벡터
+
+Double spend
+
+Race condition
+
+API replay
+
+관리자 조작
+
+19.2 방어 구조
+
+DB transaction isolation (REPEATABLE READ 이상)
+
+Idempotency key
+
+JWT + HMAC 서명
+
+감사 로그 (append-only)
+
+관리자 2인 승인
+
+20. 테스트 전략
+20.1 단위 테스트
+
+잔액 계산
+
+정책 적용
+
+만료 처리
+
+20.2 통합 테스트
+
+Hybrid 결제 시나리오
+
+Settlement 실패 복구
+
+부분 환불 시 처리
+
+20.3 부하 테스트
+
+10,000 TPS 동시 적립
+
+동시 spend 요청
+
+21. 향후 확장
+
+Cross-merchant coalition
+
+NFT Voucher
+
+Dynamic reward multiplier
+
+On-chain proof bridge
+
+Stablecoin 교환 게이트웨이
+
+22. 설계 요약
+
+PayPoint(saum)는:
+
+소비 중심 크레딧 시스템
+
+자산 구조와 명확히 분리
+
+정산 이전 단계에 위치
+
+하이브리드 결제 모델 지원
+
+정책 기반 확장 가능
+
+다음 단계로 더 깊게 들어갈 수 있는 영역:
+
+1️⃣ Smart Contract 기반 On-chain Voucher 설계
+2️⃣ Wallet UX 아키텍처
+3️⃣ PCI와의 정교한 상호작용 설계
+4️⃣ PayPoint → Stablecoin 전환 구조 (OTC/Swap)
+5️⃣ 내부 운영자 콘솔 설계
+
+어디까지 밀어붙일까요?
+
+월렛은 일단 제외해도 되고, 페이포인트 엔진 / saum 웹앱 및 모바일 앱(웹앱 기반) 구조가 명확히 분리되어야 합니다. 또한 페이포인트와 스테이블코인의 전환 구조도 고려해야 하고, 운영자 콘솔도 설계해주셔야 합니다.
+
+좋습니다. 요청하신 전제를 기준으로 PayPoint(saum) 전체를 “엔진 / WebApp·Mobile(WebView) / Operator Console”로 명확히 분리하고, PayPoint ↔ Stablecoin 전환(OTC/Swap/Settlement) 구조까지 포함한 개발자 문서 형태로 정리하겠습니다.
+(월렛은 제외합니다.)
+
+📘 PayPoint(saum) Developer Documentation v1.1
+Engine / WebApp·Mobile / Operator Console / Stable Conversion
+0. 범위와 원칙
+0.1 범위
+
+본 문서는 다음 4개를 포함한다.
+
+PayPoint Engine (Core Credit Engine)
+
+saum WebApp (사용자 UI, 웹앱)
+
+saum Mobile App (WebApp 기반 WebView Shell)
+
+Operator Console (운영자/기관/가맹점 관리자)
+
+또한 PayPoint 크레딧과 Stablecoin 전환 구조(Conversion/Settlement)를 포함한다.
+
+0.2 절대 원칙
+
+PayPoint는 자산(Asset) 이 아니라 크레딧(Credit) 이다.
+
+PayPoint Engine은 정산/유동성/DeFi를 직접 운용하지 않는다.
+
+Stablecoin 전환은 “사용자 UI 기능”이 아니라 Back-end Routing/Execution 기능이다.
+
+UI(Web/Mobile/Console)는 엔진을 대체하지 않으며, 엔진의 상태를 렌더링한다.
+
+1. 시스템 분리 아키텍처
+1.1 3-컴포넌트 분리 (필수)
+[PayPoint Engine]  ← SSOT (Credits, Policy, Receipts)
+      ↑     ↑
+      |     |
+[saum WebApp/Mobile]    [Operator Console]
+(UI/UX)                  (Ops/Policy/Reports)
+
+엔진은 “단일 진실(SSOT)”이다.
+웹앱/모바일/콘솔은 엔진 API만 호출한다. DB 직접 접근 금지.
+
+2. PayPoint Engine (Core)
+2.1 책임(Responsibilities)
+
+PayPoint Engine은 다음을 책임진다.
+
+크레딧 계정(Account) 및 잔액(Balance)
+
+적립/발급(Issue)
+
+사용/차감(Spend)
+
+보류(Hold/Reserve) 및 확정(Commit)
+
+만료(Expire)
+
+환불/취소(Reverse)
+
+정책(Policy) 평가(허용/거절/보류)
+
+Receipt 생성 및 Settlement Layer로 전달(연동)
+
+2.2 엔진이 하지 않는 것(Non-Responsibilities)
+
+Stablecoin 스왑/브릿지/유동성 풀 직접 운용 ❌
+
+체인 자산 보관/커스터디 ❌
+
+사용자의 키 관리 ❌
+
+DeFi 전략 실행 ❌
+
+(이 영역은 Liquidity & Assets Layer/Chaum 또는 외부 라우터로 위임)
+
+3. saum WebApp (User Web)
+3.1 역할
+
+saum WebApp은 “사용자가 보는 PayPoint UX”다.
+
+잔액 표시
+
+적립/사용 내역
+
+결제(크레딧 사용) 플로우
+
+PayPoint → Stablecoin 전환 요청 UI (단, 실행은 엔진/라우터)
+
+3.2 UI가 가져야 할 데이터 원칙
+
+숫자(잔액/내역)는 엔진을 SSOT로 한다.
+
+외부 체인 상태(스테이블 잔액, tx hash 등)는 “참조 정보”로 표시하되,
+엔진이 기록한 Receipt/Status를 기준으로 보여준다.
+
+4. saum Mobile App (WebApp 기반)
+4.1 구조
+
+모바일 앱은 “네이티브 기능 최소 + WebView 중심”이 기본.
+
+[Mobile Shell]
+  - Auth session
+  - Push notifications
+  - Device binding
+  - Deep link / QR scanner (optional)
+        ↓
+[Embedded WebApp]
+  - Same UI/Flow as saum WebApp
+4.2 모바일이 웹앱과 달라야 하는 지점(최소)
+
+푸시 토큰 등록
+
+디바이스 바인딩(간단한 device signature)
+
+생체 인증 연동(가능하면)
+
+네이티브 QR/NFC 스캐너(선택)
+
+나머지는 동일한 WebApp 렌더링.
+
+5. Operator Console (운영자 콘솔)
+
+운영자 콘솔은 “사람이 하는 운영을 엔진에 안전하게 반영하는 UI”다.
+이건 필수입니다. PayPoint는 정책과 예외가 반드시 생깁니다.
+
+5.1 콘솔 사용자(roles)
+
+Super Admin
+
+Brand Operator
+
+Merchant Operator
+
+Risk/Compliance Viewer
+
+Support Agent (CS)
+
+5.2 콘솔 기능 세트(필수)
+A) Credit Operations
+
+사용자/가맹점 계정 조회
+
+수동 적립/차감(권한 제한 + 2인 승인 옵션)
+
+대량 발급 캠페인(Job)
+
+만료 정책 실행/재설정
+
+B) Policy Management
+
+사용처 제한(merchant/category)
+
+한도(일/월/건)
+
+등급별 정책
+
+HOLD 규칙(리스크 플래그 시 보류)
+
+정책 버전 관리(Policy versioning)
+
+C) Reconciliation / Reporting
+
+Receipt 리스트
+
+Spend → Commit → Settled 상태 확인
+
+취소/환불 처리 상태
+
+전환(Conversion) 요청 처리/실행 로그
+
+에러 큐(exception queue)
+
+D) Risk Controls
+
+이상 사용 탐지(급증/다중 실패)
+
+계정 정지/해제
+
+특정 가맹점 차단
+
+프로모션 남용 탐지
+
+6. PayPoint ↔ Stablecoin 전환 구조 (핵심)
+
+요청하신 “전환 구조”는 세 가지로 나눠야 안전합니다.
+
+6.1 전환은 3종류가 있다
+
+User Cash-out Conversion
+
+사용자가 PayPoint를 stable로 “전환/출금”하고 싶어하는 요구
+
+규제/정책상 가장 민감
+
+Merchant Settlement Conversion
+
+가맹점 정산을 stable로 받고 싶다는 요구
+
+Pay Worlds 철학과 가장 정합
+
+Internal Treasury Conversion
+
+운영자가 리저브/정산을 위해 내부적으로 stable을 확보/교환
+
+Liquidity & Assets 레이어에 가까움
+
+PayPoint 문서에는 (1)은 제한적/정책 기반, (2)(3)은 구조적으로 강하게 지원하는 톤이 맞습니다.
+
+6.2 권장: “전환”을 UI에서 자산교환처럼 보이게 하지 말 것
+
+PayPoint는 자산 앱이 아니므로,
+
+스왑 화면
+
+차트
+
+호가
+
+교환 비율 노출
+
+은 최소화해야 합니다.
+
+대신:
+
+“정산 옵션(Stable)” 또는 “출금 옵션(허용된 경우)”
+같은 표현으로 정책 기반 흐름으로 처리합니다.
+
+6.3 Conversion Architecture (권장 설계)
+
+PayPoint Engine 자체가 스왑을 하지 않습니다.
+Conversion Router를 별도 컴포넌트로 둡니다.
+
+PayPoint Engine
+  - create ConversionRequest
+  - lock credits (reserved_balance)
+        ↓
+Conversion Router (Execution Service)
+  - price quote
+  - routing (CEX/DEX/OTC)
+  - tx execution
+        ↓
+Settlement Receipt update
+  - COMMITTED → SETTLED
+  - record txHash / settlementRef
+구성 요소
+
+ConversionRequest (엔진에 기록)
+
+Quote Provider (가격/수수료)
+
+Route Executor (DEX/CEX/OTC)
+
+Settlement Adapter (PayChain/IEUM 연동)
+
+6.4 ConversionRequest 상태 머신
+REQUESTED
+  ↓ (policy pass)
+AUTHORIZED (lock credits)
+  ↓ (execution started)
+EXECUTING
+  ↓
+SETTLED (txHash recorded)
+  ↘
+FAILED (unlock credits)
+설계 포인트
+
+REQUESTED는 UI 요청
+
+AUTHORIZED에서 credit lock
+
+FAILED 시 credit unlock
+
+SETTLED 시 credit burn/consume 확정
+
+6.5 정책 기반 전환 제한 (필수)
+
+Conversion은 규제 민감도가 높으므로, PayPoint 엔진의 Policy Engine에서 반드시 통제합니다.
+
+예:
+
+KYC 등급 필요
+
+월 한도
+
+특정 국가 차단
+
+특정 사용자군만 허용
+
+특정 가맹점 정산에만 허용
+
+7. 데이터 모델 확장
+7.1 Conversion 테이블(엔진 SSOT)
+CREATE TABLE paypoint_conversions (
+  conversion_id UUID PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  type TEXT NOT NULL, -- USER_CASHOUT | MERCHANT_SETTLEMENT | TREASURY
+  from_amount NUMERIC(30,0) NOT NULL,
+  from_unit TEXT NOT NULL DEFAULT 'PAYPOINT',
+  to_asset TEXT NOT NULL, -- USDC/USDT/...
+  to_chain_id BIGINT,
+  status TEXT NOT NULL, -- REQUESTED/AUTHORIZED/EXECUTING/SETTLED/FAILED
+  quote JSONB,
+  tx_hash TEXT,
+  settlement_ref TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+7.2 Credit Lock 연동
+
+AUTHORIZED 시 reserved_balance 증가
+
+SETTLED 시 reserved 확정 차감 + “burn” 기록
+
+FAILED 시 reserved 해제
+
+8. API 설계 (엔진 중심)
+8.1 User (Web/Mobile)
+
+GET /v1/paypoint/balance
+
+GET /v1/paypoint/transactions
+
+POST /v1/paypoint/spend
+
+POST /v1/paypoint/conversion/request
+
+GET /v1/paypoint/conversion/{id}
+
+8.2 Operator Console
+
+POST /v1/admin/issue
+
+POST /v1/admin/adjust
+
+POST /v1/admin/policy/publish
+
+POST /v1/admin/conversion/approve (2인승인/워크플로우)
+
+GET /v1/admin/exceptions
+
+9. 운영/보안 모델
+9.1 PayPoint Engine 보안 기본값
+
+append-only ledger (거래내역 수정 금지)
+
+idempotency key 강제
+
+DB transaction + row lock
+
+관리자 기능은 2인승인 옵션(정책/대량발급/대량차감/전환 승인)
+
+9.2 Conversion Router 보안 기본값
+
+allowlisted route only
+
+체인/자산 whitelist
+
+quote 만료
+
+replay 방지 nonce
+
+txHash/receipt 참조 강제
+
+10. 구현 로드맵 (PayPoint 관점)
+Phase 0 (MVP)
+
+Engine: issue/spend/transactions
+
+WebApp: balance/history/spend
+
+Console: user search + issue
+
+Conversion: merchant settlement만 제한적으로(권장)
+
+Phase 1
+
+Policy versioning
+
+HOLD/Review workflow
+
+Conversion Router 고도화(DEX/CEX 라우팅)
+
+Phase 2
+
+Mobile shell(푸시/바이오)
+
+fraud/risk rules
+
+reporting pack
+
+다음으로 이어서(원하시면 바로 작성)
+
+Operator Console 화면 설계(페이지/권한/워크플로우)
+
+Conversion Router 상세 설계(OTC/DEX/CEX 각각의 실행 방식 + 상태/재시도)
+
+PayPoint 엔진의 Receipt 연동(Receipt 필드 스키마, settlementRef 규격)
+
+정책 DSL (PayPoint Policy-as-code) v1
+
+원하신 순서가 있으면 그 순서로, 없으면 1) 콘솔 화면 설계부터 들어가겠습니다.
+
+계속
+
+좋습니다.
+이어서 (1) Operator Console 화면/권한/워크플로우 설계부터 “바로 구현 가능한 수준”으로 내려갑니다.
+(월렛은 계속 제외, WebApp/모바일 WebView/엔진/콘솔 분리는 유지합니다.)
+
+📘 PayPoint(saum) Developer Documentation v1.2
+Part B — Operator Console Spec (UI/Workflow/RBAC/Audit)
+11. Operator Console 개요
+11.1 목적
+
+Operator Console은 PayPoint 운영에서 반드시 필요한 3가지를 책임진다.
+
+정책(Policy) 운영: 누구에게, 어디서, 얼마나 쓸 수 있는가
+
+예외(Exception) 처리: 중복/오류/환불/전환 실패 등
+
+감사(Audit) 가능성: 누가, 언제, 무엇을 바꿨는가
+
+PayPoint는 “포인트 앱”이 아니라 결제 크레딧이므로,
+콘솔은 단순 CMS가 아니라 운영 통제 시스템이어야 한다.
+
+12. RBAC (역할 기반 권한 설계)
+12.1 Role Definitions
+Role	권한 요약	비고
+Super Admin	전역 설정/권한/긴급정지	최소 인원
+Policy Admin	정책 생성/배포	2인 승인 대상
+Ops Admin	수동 발급/차감/계정조치	한도 제한
+Risk/Compliance	HOLD/해제/조사	읽기+결정
+Support Agent	조회/CS 처리	write 금지 기본
+Finance/Audit Viewer	리포트/정산 조회	read-only
+12.2 2-Man Rule (필수 권장)
+
+다음 작업은 무조건 2인 승인(4-eyes) 가능하도록 설계한다.
+
+정책 배포(Policy publish)
+
+대량 발급(Campaign issue)
+
+대량 차감(Recovery)
+
+Conversion 승인(사용자 캐시아웃/대량 정산)
+
+13. Console IA (정보구조) — 메뉴 트리
+Console
+ ├─ Dashboard
+ ├─ Users & Accounts
+ ├─ Merchants
+ ├─ Policies
+ ├─ Credits Ops
+ ├─ Conversions (PayPoint ↔ Stable)
+ ├─ Receipts & Settlement
+ ├─ Exceptions / Queue
+ ├─ Reports
+ └─ Admin (RBAC / Keys / Settings)
+14. 화면별 상세 스펙
+14.1 Dashboard
+목적
+
+운영자가 “지금 위험이 있는지”를 30초 안에 판단.
+
+KPI (Top cards)
+
+총 활성 사용자 수
+
+총 PayPoint 유통 잔액
+
+오늘 발급/사용/만료량
+
+HOLD 건수
+
+Conversion 요청 건수 / 실패율
+
+Exceptions queue size
+
+Alert Panel (필수)
+
+정책 변경 예정(effective_from)
+
+특정 가맹점 이상 사용 급증
+
+Conversion 실패(연속 실패)
+
+잔액 불일치 감지(should be 0)
+
+14.2 Users & Accounts
+화면 구성
+
+Search: user_id / phone hash / device id / status
+
+Account Summary: balance, reserved_balance, status
+
+Timeline: ISSUE/SPEND/EXPIRE/ADJUST/CONVERSION events
+
+Actions:
+
+Suspend / Unsuspend
+
+Manual issue/adjust (권한 제한)
+
+Set HOLD flag (Risk)
+
+개발 포인트
+
+모든 액션은 AuditLog에 남겨야 함
+
+balance 변경은 Transaction ledger로만 가능(직접 update 금지)
+
+14.3 Merchants
+목적
+
+PayPoint 사용처 제한, 가맹점 그룹, 카테고리 정책 연결
+
+구성
+
+merchant_id / store_id
+
+category tags
+
+country/jurisdiction flags
+
+acceptance rules (allowed/blocked)
+
+기능
+
+Merchant group 만들기 (예: DALKOMM_ALL)
+
+Group 정책 일괄 적용
+
+14.4 Policies (핵심)
+14.4.1 Policy 개념
+
+PayPoint 정책은 “결제 승인 규칙”이다.
+
+허용(Approve)
+
+보류(Hold)
+
+거절(Decline)
+
+14.4.2 Policy Object 예시
+{
+  "policy_id": "PAYPOINT_SPEND_POLICY",
+  "version": "1.2.0",
+  "effective_from": "2026-03-01T00:00:00Z",
+  "rules": {
+    "max_tx_amount": "50000",
+    "max_daily_amount": "200000",
+    "allowed_merchant_groups": ["DALKOMM_ALL"],
+    "blocked_categories": ["GAMBLING"],
+    "kyc_required_level": 2,
+    "hold_rules": {
+      "high_amount_threshold": "300000",
+      "suspicious_frequency": { "count": 5, "window_sec": 600 }
+    }
+  }
+}
+14.4.3 Policy Workflow (Draft → Published)
+DRAFT
+  ↓ (Policy Admin)
+REVIEW_REQUIRED
+  ↓ (2-Man Approval)
+PUBLISHED (scheduled)
+  ↓ (effective_from)
+ACTIVE
+UI 요구사항
+
+diff view (이전 버전 대비 변경점)
+
+effective_from 예약
+
+rollback은 “이전 버전 재활성화”로만
+
+14.5 Credits Ops
+목적
+
+발급/차감/캠페인을 “운영 사고 없이” 수행
+
+기능
+
+Manual Issue
+
+Manual Adjust (Recovery/CS)
+
+Bulk Issue Campaign
+
+Bulk Campaign 필수 필드
+
+campaign_id
+
+target cohort (user list / segment)
+
+amount rule (fixed / tiered)
+
+expiry
+
+budget cap
+
+dry-run 결과(예상 총량)
+
+승인(2-man)
+
+Campaign State
+CREATED → DRY_RUN → APPROVED → EXECUTING → DONE / FAILED
+14.6 Conversions (PayPoint ↔ Stable)
+목적
+
+전환은 민감하므로 명시적 승인/상태/로그가 있어야 함.
+
+구성
+
+conversion_id
+
+type: USER_CASHOUT / MERCHANT_SETTLEMENT / TREASURY
+
+from_amount (PayPoint)
+
+to_asset (USDC/USDT/…)
+
+route (DEX/CEX/OTC)
+
+status
+
+tx_hash (있다면)
+
+failure reason
+
+Approval Workflow (권장)
+
+USER_CASHOUT: 기본 HOLD → 승인 필요
+
+MERCHANT_SETTLEMENT: 자동 승인 가능(merchant whitelist 전제)
+
+TREASURY: Ops Admin + 2-man approval
+
+상태 머신(재정리)
+REQUESTED
+  ↓ (policy pass)
+AUTHORIZED (credit lock)
+  ↓
+EXECUTING (router)
+  ↓
+SETTLED (txHash/ref)
+  ↘
+FAILED (unlock)
+UI Actions
+
+approve / reject
+
+retry (idempotent)
+
+cancel (조건부)
+
+view quote snapshot
+
+14.7 Receipts & Settlement
+목적
+
+PayPoint spend가 Settlement로 어떻게 확정됐는지 추적
+
+구성
+
+order_id / receipt_id
+
+paypoint_component
+
+other_component(stable/PCI)
+
+receipt status: INIT/AUTH/COMMITTED/BATCHED/ANCHORED/SETTLED
+
+anchor tx hash / batch id
+
+기능
+
+receipt drilldown (원장 + 정책 적용 결과)
+
+settlement export (CSV/PDF)
+
+14.8 Exceptions / Queue
+목적
+
+운영 실패는 “조용히 묻히면” 가장 위험하다.
+모든 예외는 큐로 올라와야 한다.
+
+Reason Codes (예시)
+
+IDEMPOTENCY_CONFLICT
+
+NEGATIVE_BALANCE_ATTEMPT
+
+POLICY_VERSION_MISMATCH
+
+CONVERSION_ROUTE_FAILED
+
+SETTLEMENT_TIMEOUT
+
+DUPLICATE_SPEND
+
+MERCHANT_BLOCKED
+
+상태
+
+OPEN → INVESTIGATING → RESOLVED / ESCALATED
+
+UI 요구
+
+severity (LOW/MED/HIGH/CRITICAL)
+
+assign to owner
+
+resolution playbook 링크
+
+audit trail 자동 첨부
+
+14.9 Reports
+리포트 종류
+
+일/주/월 GMV(크레딧 사용액)
+
+발급 vs 사용 vs 만료
+
+merchant별 사용량
+
+정책별 승인/보류/거절 비율
+
+conversion volume & failure rate
+
+사용자 cohort retention (선택)
+
+Export
+
+CSV
+
+PDF(기관용)
+
+API(기관/파트너)
+
+15. Audit Log Spec (필수)
+
+콘솔에서 발생한 모든 write action은 AuditLog에 기록
+
+CREATE TABLE audit_logs (
+  audit_id UUID PRIMARY KEY,
+  actor_id TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  before JSONB,
+  after JSONB,
+  request_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+감사 기준:
+
+누가
+
+언제
+
+무엇을
+
+어떤 값에서 어떤 값으로 바꿨는지
+
+16. Operator Console API (요약)
+Admin
+
+POST /v1/admin/policies/draft
+
+POST /v1/admin/policies/{id}/submit
+
+POST /v1/admin/policies/{id}/approve
+
+POST /v1/admin/policies/{id}/activate
+
+Credits
+
+POST /v1/admin/credits/issue
+
+POST /v1/admin/credits/adjust
+
+POST /v1/admin/campaigns/create
+
+POST /v1/admin/campaigns/{id}/approve
+
+GET /v1/admin/campaigns/{id}/status
+
+Conversions
+
+GET /v1/admin/conversions?status=REQUESTED
+
+POST /v1/admin/conversions/{id}/approve
+
+POST /v1/admin/conversions/{id}/retry
+
+Exceptions
+
+GET /v1/admin/exceptions
+
+POST /v1/admin/exceptions/{id}/resolve
+
+17. 다음 파트 (계속)
+
+이제 다음은 요청하신 핵심 중 하나인:
+
+✅ PayPoint ↔ Stablecoin 전환 구조 (Conversion Router) 상세 설계
+를 기술 백서 수준으로 내려갑니다.
+
+다음 턴에서:
+
+Conversion Router 컴포넌트 구성
+
+OTC/DEX/CEX 라우팅 모델
+
+Quote 모델(만료/슬리피지/수수료)
+
+idempotency / retry / partial fill 방지
+
+Settlement receipt 연동 방식
+
+규제/정책 경계 (Cashout vs Merchant Settlement)
+
+까지 완성형으로 작성하겠습니다.
+
+계속 진행하겠습니다.
+
+계속
+
+좋습니다.
+이제 PayPoint ↔ Stablecoin 전환 구조(Conversion Router) 상세 설계를 기술 백서 수준으로 정리합니다.
+
+이번 파트는 다음을 포함합니다:
+
+Conversion Router 전체 아키텍처
+
+OTC / DEX / CEX 라우팅 모델 비교
+
+Quote 모델 (슬리피지·만료·수수료)
+
+idempotency / retry / partial fill 방지 설계
+
+Settlement Receipt 연동
+
+규제/정책 경계
+
+운영/리스크 통제 모델
+
+📘 PayPoint(saum) Developer Documentation v1.3
+Part C — Conversion Router & Stablecoin Integration
+18. Conversion Router 개요
+18.1 정의
+
+Conversion Router는 다음을 수행한다:
+
+PayPoint 크레딧을 Stablecoin으로 전환하거나
+Stablecoin 기반 정산을 실행하기 위한 실행 계층
+
+Conversion Router는:
+
+PayPoint Engine과 분리된다.
+
+Settlement Layer와 직접 결합되지 않는다.
+
+Liquidity & Assets Layer와 연결된다.
+
+18.2 구조
+PayPoint Engine
+   ↓ (ConversionRequest)
+Conversion Router
+   ↓ (Route Execution)
+External Liquidity (DEX / CEX / OTC)
+   ↓
+Settlement Confirmation
+   ↓
+PayPoint Engine update (SETTLED / FAILED)
+19. Conversion 유형 구분
+
+Conversion은 3가지로 나뉜다.
+
+19.1 USER_CASHOUT
+
+사용자가 PayPoint를 Stable로 전환 요청.
+
+정책 기반 승인 필수
+
+KYC 요구 가능
+
+한도 제한 필수
+
+⚠️ 가장 규제 민감
+
+19.2 MERCHANT_SETTLEMENT
+
+가맹점 정산을 Stable로 지급.
+
+PayPoint 사용 결과 정산
+
+자동 승인 가능 (화이트리스트 가맹점)
+
+Pay Worlds 구조와 정합성 가장 높음
+
+19.3 TREASURY_CONVERSION
+
+운영자 내부 자본 관리 목적.
+
+리저브 관리
+
+정책 기반
+
+2인 승인 필수
+
+20. Conversion Router 아키텍처
+20.1 구성 모듈
+conversion-router/
+  ├─ quote-engine/
+  ├─ route-selector/
+  ├─ execution-adapters/
+  │    ├─ dex-adapter/
+  │    ├─ cex-adapter/
+  │    └─ otc-adapter/
+  ├─ risk-engine/
+  ├─ settlement-adapter/
+  └─ idempotency-manager/
+21. Quote Engine 설계
+21.1 Quote 구조
+{
+  "quote_id": "Q123",
+  "from_asset": "PAYPOINT",
+  "to_asset": "USDC",
+  "from_amount": "10000",
+  "estimated_to_amount": "7.48",
+  "price": "1337.5",
+  "slippage_bps": 50,
+  "fee_bps": 30,
+  "expires_at": "2026-03-01T12:00:30Z"
+}
+21.2 Quote 정책
+
+유효 시간(30~120초)
+
+슬리피지 상한선
+
+수수료 고정
+
+정책 위반 시 자동 거절
+
+22. Route Selection Logic
+22.1 DEX Route
+
+체인 상 스왑
+
+투명성 높음
+
+슬리피지 존재
+
+적합:
+
+소액
+
+자동 실행
+
+22.2 CEX Route
+
+중앙화 거래소 API
+
+체결 확실성 높음
+
+입출금 지연 존재
+
+적합:
+
+중간 규모
+
+낮은 슬리피지 요구
+
+22.3 OTC Route
+
+직접 거래
+
+대량 체결
+
+수동 승인 필요
+
+적합:
+
+MERCHANT_SETTLEMENT
+
+TREASURY
+
+22.4 Route 결정 알고리즘 (예시)
+if amount < SMALL_THRESHOLD:
+    route = DEX
+elif amount < LARGE_THRESHOLD:
+    route = CEX
+else:
+    route = OTC
+
+정책으로 override 가능.
+
+23. Execution Flow (Deterministic)
+23.1 Conversion 상태 머신
+REQUESTED
+  ↓ (policy pass)
+AUTHORIZED (credit lock)
+  ↓
+QUOTED
+  ↓
+EXECUTING
+  ↓
+SETTLED (txHash / settlementRef)
+  ↘
+FAILED (unlock)
+23.2 Idempotency 모델
+
+Unique key:
+
+(user_id, conversion_type, order_id)
+
+재시도 시:
+
+동일 key → 기존 상태 반환
+
+payload mismatch → exception
+
+23.3 Partial Fill 방지
+
+v1에서는 Partial Fill 금지
+
+전액 체결 아니면 FAILED 처리
+
+이후 unlock
+
+24. Settlement Receipt 연동
+
+Conversion 성공 시:
+
+Receipt 업데이트:
+
+{
+  "receipt_id": "R001",
+  "paypoint_component": "10000",
+  "stable_component": "7.48 USDC",
+  "conversion_tx_hash": "0xabc123"
+}
+
+Settlement Layer 상태 전이:
+
+COMMITTED → BATCHED → ANCHORED → SETTLED
+
+Conversion Router는 Settlement 상태를 직접 변경하지 않음.
+Engine을 통해 상태 전환 요청.
+
+25. Risk Engine
+25.1 Risk Signals
+
+대량 전환 요청
+
+짧은 시간 내 반복 전환
+
+신규 계정 고액 요청
+
+정책 미충족
+
+25.2 Risk Actions
+
+HOLD 상태 전환
+
+수동 승인 요구
+
+KYC 요구
+
+한도 자동 축소
+
+26. 규제 경계
+
+Conversion은 다음을 지켜야 한다.
+
+PayPoint는 자산이 아니다.
+
+전환은 “정산 옵션” 또는 “지급 방식 선택”으로 표현
+
+투자/수익/이자 언급 금지
+
+AML/KYC 조건부 허용
+
+27. Multi-chain 고려
+
+Conversion 결과가 체인 상 tx를 포함할 경우:
+
+chain_id 기록
+
+tx_hash 저장
+
+finality 확인 후 SETTLED
+
+timeout 시 FAILED
+
+Primary chain 기준:
+
+Base
+
+Arbitrum
+
+BSC
+
+28. 운영 통제
+28.1 Admin Controls
+
+Conversion 일시 중단
+
+특정 체인 차단
+
+특정 자산 차단
+
+수수료율 조정
+
+일일 전환 한도 조정
+
+28.2 Emergency Kill Switch
+
+모든 USER_CASHOUT 중단
+
+MERCHANT_SETTLEMENT만 유지
+
+Risk 승인 모드 전환
+
+29. Conversion Router 설계 요약
+
+Conversion Router는:
+
+자산 교환 엔진이 아니다.
+
+정산 옵션 실행 계층이다.
+
+Liquidity Layer와 연결된 실행 모듈이다.
+
+정책 기반 통제 구조를 갖는다.
+
+Deterministic하고 감사 가능해야 한다.
+
+다음 단계
+
+이제 남은 핵심은 다음 중 하나입니다:
+
+1️⃣ IEUM / PayChain과의 깊은 Receipt 연동 구조
+2️⃣ PayPoint Policy DSL 완성형 스펙
+3️⃣ Liquidity Layer(Chaum)와 Conversion의 연결 구조
+4️⃣ 실제 배포 아키텍처(K8s / DevOps / HSM / Key 관리)

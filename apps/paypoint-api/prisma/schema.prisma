@@ -1,0 +1,94 @@
+// PayPoint (saum) - Production-level schema (doc 15, 7.1, Audit)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PaypointAccount {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Text
+  balance          Decimal  @default(0) @db.Decimal(30, 0)
+  reservedBalance  Decimal  @default(0) @map("reserved_balance") @db.Decimal(30, 0)
+  status           String   @default("ACTIVE") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions PaypointTransaction[]
+
+  @@map("paypoint_accounts")
+}
+
+model PaypointTransaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  accountId  String   @map("account_id") @db.Uuid
+  type       String   @db.Text // ISSUE | SPEND | EXPIRE | ADJUST
+  amount     Decimal  @db.Decimal(30, 0)
+  orderId    String?  @map("order_id") @db.Text
+  receiptId  String?  @map("receipt_id") @db.Text
+  metadata   Json?    @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account PaypointAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@map("paypoint_transactions")
+}
+
+model PaypointPolicy {
+  policyId      String   @map("policy_id") @db.Text
+  version       String   @db.Text
+  policyJson    Json     @map("policy_json") @db.JsonB
+  effectiveFrom DateTime? @map("effective_from") @db.Timestamptz(6)
+
+  @@id([policyId, version])
+  @@map("paypoint_policies")
+}
+
+model PaypointConversion {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Text
+  type          String   @db.Text // USER_CASHOUT | MERCHANT_SETTLEMENT | TREASURY
+  fromAmount    Decimal  @map("from_amount") @db.Decimal(30, 0)
+  fromUnit      String   @default("PAYPOINT") @map("from_unit") @db.Text
+  toAsset       String   @map("to_asset") @db.Text
+  toChainId     BigInt?  @map("to_chain_id") @db.BigInt
+  status        String   @db.Text // REQUESTED | AUTHORIZED | EXECUTING | SETTLED | FAILED
+  quote         Json?    @db.JsonB
+  txHash        String?  @map("tx_hash") @db.Text
+  settlementRef String?  @map("settlement_ref") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId, status])
+  @@map("paypoint_conversions")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String   @map("actor_id") @db.Text
+  actorRole  String   @map("actor_role") @db.Text
+  action     String   @db.Text
+  targetType String   @map("target_type") @db.Text
+  targetId   String   @map("target_id") @db.Text
+  before     Json?    @db.JsonB
+  after      Json?    @db.JsonB
+  requestId  String?  @map("request_id") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+// Idempotency: same key returns same result (doc 8.2, 23.2)
+model IdempotencyRecord {
+  idempotencyKey String   @map("idempotency_key") @id @db.Text
+  response       Json     @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("idempotency_records")
+}

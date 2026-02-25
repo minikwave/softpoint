@@ -1,0 +1,29 @@
+{
+  "name": "paypoint-saum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PayPoint (saum) - Application Credit Abstraction Layer",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "build:domain": "pnpm --filter @paypoint/domain run build",
+    "build:api": "pnpm --filter paypoint-api run build",
+    "build:webapp": "pnpm --filter saum-webapp run build",
+    "build:console": "pnpm --filter operator-console run build",
+    "dev": "pnpm --filter paypoint-api run dev",
+    "dev:api": "pnpm --filter paypoint-api run dev",
+    "dev:webapp": "pnpm --filter saum-webapp run dev",
+    "dev:console": "pnpm --filter operator-console run dev",
+    "serve": "concurrently -n api,webapp -c blue,green \"pnpm --filter paypoint-api run dev\" \"pnpm --filter saum-webapp run dev\"",
+    "build:and:serve": "pnpm run build && pnpm run serve",
+    "db:generate": "pnpm --filter paypoint-api run db:generate",
+    "db:migrate": "pnpm --filter paypoint-api run db:migrate",
+    "db:push": "pnpm --filter paypoint-api run db:push"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

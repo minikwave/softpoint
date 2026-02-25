@@ -1,0 +1,50 @@
+:root {
+  --bg: #0d0f12;
+  --surface: #161a20;
+  --border: #2a313c;
+  --text: #e6e9ef;
+  --text-muted: #8b92a0;
+  --accent: #7eb8da;
+  --accent-dim: #5a9bc4;
+  --success: #8fbc8f;
+  --error: #d48787;
+  --radius: 10px;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, select {
+  font-family: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
