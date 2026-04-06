@@ -69,6 +69,6 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 ## Docs
 
-- [Project analysis & execution plan](./PROJECT_ANALYSIS_AND_PLAN.md)
+- [Project analysis & execution plan](./PROJECT_ANALYSIS_AND_PLAN.md) — **§5** 단계별 로드맵(Phase 0~4), **§7** Phase 0 구현 체크리스트(완료/남음), **§10** 남은 투두·백로그 ID(`P0-*`, `M1-*`, `B1-*`, `C1-*`, `MP-*`, `W1-*`: 머지·모음·마켓·하드닝 포함)
 - [PayPoint 적립 정책 및 결제 시 적립 기술 과정](./docs/PAYPOINT_EARN_POLICY_AND_FLOW.md)
 - [PayPoint dev docs](./paypoint%20dev%20docs.txt)
