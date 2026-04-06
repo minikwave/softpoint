@@ -17,8 +17,18 @@ function formatAmount(s: string): string {
   return n.toLocaleString('ko-KR');
 }
 
+function txSourceLabel(meta: unknown): string {
+  if (meta && typeof meta === 'object' && 'source' in meta) {
+    const s = (meta as { source: unknown }).source;
+    if (typeof s === 'string' && s.trim()) return s;
+  }
+  return '—';
+}
+
 export default function EarnHistory() {
   const [userId, setUserId] = useState(DEFAULT_USER);
+  const [sourceInput, setSourceInput] = useState('');
+  const [appliedSource, setAppliedSource] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +37,12 @@ export default function EarnHistory() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api.getTransactions(userId, 50)
+    api
+      .getTransactions(userId, {
+        limit: 50,
+        type: 'ISSUE',
+        ...(appliedSource ? { source: appliedSource } : {}),
+      })
       .then(({ data, error: e }) => {
         if (cancelled) return;
         setLoading(false);
@@ -36,11 +51,16 @@ export default function EarnHistory() {
           setItems([]);
           return;
         }
-        const list = data?.items ?? [];
-        setItems(list.filter((t) => t.type === 'ISSUE'));
+        setItems(data?.items ?? []);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, appliedSource]);
+
+  const applySourceFilter = () => setAppliedSource(sourceInput.trim());
+  const clearSourceFilter = () => {
+    setSourceInput('');
+    setAppliedSource('');
+  };
 
   return (
     <>
@@ -58,6 +78,28 @@ export default function EarnHistory() {
           placeholder="예: U1"
           style={{ marginBottom: 0, padding: '0.65rem 0.85rem', width: '100%', maxWidth: '200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
         />
+        <p className="card-title" style={{ marginTop: '1rem' }}>출처 필터 (선택)</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={sourceInput}
+            onChange={(e) => setSourceInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applySourceFilter()}
+            placeholder="예: admin_manual"
+            style={{ padding: '0.65rem 0.85rem', minWidth: '200px', flex: '1 1 180px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
+          />
+          <button type="button" className="btn btn-primary" onClick={applySourceFilter}>
+            적용
+          </button>
+          <button type="button" className="btn" onClick={clearSourceFilter}>
+            초기화
+          </button>
+        </div>
+        {appliedSource ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            적용 중: <strong>{appliedSource}</strong> (적립만)
+          </p>
+        ) : null}
       </div>
 
       {loading && <p className="loading">조회 중…</p>}
@@ -82,11 +124,7 @@ export default function EarnHistory() {
                   {items.map((t) => (
                     <tr key={t.tx_id}>
                       <td className="earn-amount">+{formatAmount(t.amount)} PP</td>
-                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {t.metadata && typeof t.metadata === 'object' && 'source' in t.metadata && typeof (t.metadata as { source: unknown }).source === 'string'
-                          ? (t.metadata as { source: string }).source
-                          : '—'}
-                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{txSourceLabel(t.metadata)}</td>
                       <td>{t.order_id ?? '—'}</td>
                       <td>{formatDate(t.created_at)}</td>
                     </tr>

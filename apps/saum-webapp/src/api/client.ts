@@ -48,6 +48,16 @@ export interface TransactionsRes {
   next_cursor: string | null;
 }
 
+/** GET /v1/paypoint/transactions 옵션 (type·source는 API 쿼리와 동일) */
+export interface GetTransactionsOpts {
+  limit?: number;
+  cursor?: string;
+  /** metadata.source 문자열 전체 일치 */
+  source?: string;
+  /** ISSUE | SPEND | EXPIRE | ADJUST */
+  type?: string;
+}
+
 export interface SpendRes {
   txId: string;
   receiptId: string;
@@ -80,9 +90,12 @@ export const api = {
     return request<BalanceRes>(`/v1/paypoint/balance/${encodeURIComponent(userId)}`);
   },
 
-  getTransactions(userId: string, limit = 20, cursor?: string) {
+  getTransactions(userId: string, opts: GetTransactionsOpts = {}) {
+    const { limit = 20, cursor, source, type } = opts;
     const params = new URLSearchParams({ user_id: userId, limit: String(limit) });
     if (cursor) params.set('cursor', cursor);
+    if (source?.trim()) params.set('source', source.trim());
+    if (type?.trim()) params.set('type', type.trim().toUpperCase());
     return request<TransactionsRes>(`/v1/paypoint/transactions?${params}`);
   },
 

@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { getAccountByUserId, decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
@@ -19,6 +20,8 @@ function userMatchesJwt(request: FastifyRequest, userId: string, reply: FastifyR
   }
   return true;
 }
+
+const TX_TYPES = new Set(['ISSUE', 'SPEND', 'EXPIRE', 'ADJUST']);
 
 function storedUserId(obj: unknown): string | undefined {
   if (obj && typeof obj === 'object' && 'userId' in obj && typeof (obj as { userId: unknown }).userId === 'string') {
@@ -84,11 +87,11 @@ export async function paypointRoutes(
     }
   );
 
-  // GET /v1/paypoint/transactions
+  // GET /v1/paypoint/transactions — optional filters: type (ISSUE|…), source (metadata.source exact match)
   fastify.get<{
-    Querystring: { user_id: string; limit?: string; cursor?: string };
+    Querystring: { user_id: string; limit?: string; cursor?: string; type?: string; source?: string };
   }>('/transactions', async (request, reply) => {
-    const { user_id, limit = '20', cursor } = request.query;
+    const { user_id, limit = '20', cursor, type: typeQ, source: sourceQ } = request.query;
     if (!userMatchesJwt(request, user_id, reply)) return;
     const take = Math.min(Number.parseInt(limit, 10) || 20, 100);
     const account = await getAccountByUserId(user_id);
@@ -97,8 +100,24 @@ export async function paypointRoutes(
         error: { code: 'ACCOUNT_NOT_FOUND', message: 'Account not found' },
       });
     }
+    const typeTrim = typeQ?.trim();
+    const typeUpper = typeTrim ? typeTrim.toUpperCase() : undefined;
+    if (typeUpper && !TX_TYPES.has(typeUpper)) {
+      return reply.status(400).send({
+        error: {
+          code: 'INVALID_TYPE',
+          message: 'type must be one of ISSUE, SPEND, EXPIRE, ADJUST',
+        },
+      });
+    }
+    const sourceTrim = sourceQ?.trim() ?? '';
+    const where: Prisma.PaypointTransactionWhereInput = { accountId: account.id };
+    if (typeUpper) where.type = typeUpper;
+    if (sourceTrim) {
+      where.metadata = { path: ['source'], equals: sourceTrim };
+    }
     const items = await prisma.paypointTransaction.findMany({
-      where: { accountId: account.id },
+      where,
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

@@ -36,6 +36,8 @@ function typeBadge(type: string): string {
 
 export default function Transactions() {
   const [userId, setUserId] = useState(DEFAULT_USER);
+  const [sourceInput, setSourceInput] = useState('');
+  const [appliedSource, setAppliedSource] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,11 @@ export default function Transactions() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api.getTransactions(userId)
+    api
+      .getTransactions(userId, {
+        limit: 50,
+        ...(appliedSource ? { source: appliedSource } : {}),
+      })
       .then(({ data, error: e }) => {
         if (cancelled) return;
         setLoading(false);
@@ -56,7 +62,13 @@ export default function Transactions() {
         if (data) setItems(data.items);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, appliedSource]);
+
+  const applySourceFilter = () => setAppliedSource(sourceInput.trim());
+  const clearSourceFilter = () => {
+    setSourceInput('');
+    setAppliedSource('');
+  };
 
   return (
     <>
@@ -71,6 +83,31 @@ export default function Transactions() {
           placeholder="예: U1"
           style={{ marginBottom: 0, padding: '0.65rem 0.85rem', width: '100%', maxWidth: '200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
         />
+        <p className="card-title" style={{ marginTop: '1rem' }}>출처 필터 (선택)</p>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+          <code>metadata.source</code>와 전체 일치할 때만 표시합니다. 비우고 적용하면 전체 유형이 나옵니다.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={sourceInput}
+            onChange={(e) => setSourceInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applySourceFilter()}
+            placeholder="예: admin_manual, campaign_winter"
+            style={{ padding: '0.65rem 0.85rem', minWidth: '220px', flex: '1 1 200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
+          />
+          <button type="button" className="btn btn-primary" onClick={applySourceFilter}>
+            적용
+          </button>
+          <button type="button" className="btn" onClick={clearSourceFilter}>
+            초기화
+          </button>
+        </div>
+        {appliedSource ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            적용 중: <strong>{appliedSource}</strong>
+          </p>
+        ) : null}
       </div>
 
       {loading && <p className="loading">조회 중…</p>}

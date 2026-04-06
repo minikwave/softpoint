@@ -37,6 +37,18 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 - **오퍼레이터 콘솔**: `pnpm dev:console` 시 Vite 프록시가 루트 `.env`의 `ADMIN_API_KEY`를 자동으로 붙입니다(API와 동일 값). 브라우저에 키를 넣지 않습니다.
 - **`POST /v1/paypoint/issue`**, **`POST /v1/admin/credits/issue`** — 본문에 `idempotency_key`(선택)를 주면 동일 키 재요청 시 **200** + 저장된 결과(첫 성공 시 본문과 동일). 키 없으면 기존처럼 매번 새 적립.
 - **`POST /v1/paypoint/conversion/request`** — `idempotency_key` 또는 `client_request_id`(선택)로 멱등. 웹앱은 매 요청에 `client_request_id`(UUID)를 붙여 네트워크 재시도 시 중복 생성을 줄임.
+- **`GET /v1/paypoint/transactions`** — 쿼리 `user_id`(필수), `limit`, `cursor`, 선택 **`type`**(`ISSUE`|`SPEND`|`EXPIRE`|`ADJUST`), 선택 **`source`**(트랜잭션 `metadata.source`와 **전체 문자열 일치**). 디앱 **적립 내역**은 `type=ISSUE`와 출처 필터를 조합해 조회한다.
+
+### 멱등 키 운영 가이드 (필수 vs 선택)
+
+| 엔드포인트 | 키 필드 | 필수 | 동일 키 재요청 시 |
+|------------|---------|------|-------------------|
+| `POST /v1/paypoint/issue` | `idempotency_key` | **선택** | **200** + 첫 성공 본문(저장됨) |
+| `POST /v1/admin/credits/issue` | `idempotency_key` | **선택** | 위와 동일 |
+| `POST /v1/paypoint/spend` | `idempotency_key` | **암묵적** | 키가 없으면 내부적으로 `spend:{user_id}:{order_id}` 사용. 다른 주문과 동일 `order_id`를 쓰지 않으면 결제 단위로 멱등. 명시적 `idempotency_key`로 바꿀 수 있음. |
+| `POST /v1/paypoint/conversion/request` | `idempotency_key` **또는** `client_request_id` | **선택** | 키가 있으면 **200** + 동일 본문. `client_request_id`만 주면 저장 키는 `conversion:{user_id}:{client_request_id}`. |
+
+운영 권장: 네트워크 재시도·클라이언트 중복 클릭이 있는 **쓰기**에는 가능하면 명시적 멱등 키(또는 전환의 `client_request_id`)를 붙인다. **읽기**(balance, transactions 등)는 멱등이 아니어도 되며, 위 표는 **쓰기** 기준이다.
 
 ## 랜딩 및 디앱
 
@@ -57,7 +69,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 - **머지포인트에 가깝게 쓰려면**: PayPoint는 **단일 단위(SSOT)의 앱 크레딧**이다. 온·오프체인 **여러 인센티브를 “한 잔액”으로 보이게 하려면**, 각 소스(체인 이벤트, 제휴 포인트, 결제 캐시백 등)가 **각각 `issue`(또는 정책 기반 내부 발행)**로 엔진에 유입되도록 **연동 레이어**를 두면 된다. 저장소 안에는 **자동 멀티체인 스캐너·타사 포인트 API 어댑터**는 없고, 그 부분은 **별도 서비스 과제**다.
 - **상품권**: 디앱 **디지털 상품권** 화면에서 목업 상품을 **Spend API**로 구매하는 흐름은 연결되어 있다. 재고·정산·제휴사 검증은 미포함.
 - **마켓플레이스**: 탐색·장바구니·다수 판매자 같은 **마켓플레이스 제품**은 아직 없다. 확장 시 상품 메타데이터·머천트 정산은 API/DB 확장이 필요하다.
-- **모음(쌓음) 디앱**: 랜딩(`/`)과 디앱(`/app/*`)이 분리되어 있고, **잔액·전체 내역·적립만 필터·적립 장소(데모)·상품권(데모)·결제·정산 옵션·가게(가맹 정산)**까지 한 앱 안에서 **“모으고 쓰고 정산”** 스토리를 보여 준다. 다만 UI에 **“온체인 월렛 A + 제휴 B”** 식의 **소스별 탭**은 없고, 통합은 **하나의 `user_id` 계정 잔액**으로만 표현된다.
+- **모음(쌓음) 디앱**: 랜딩(`/`)과 디앱(`/app/*`)이 분리되어 있고, **잔액·전체 내역·적립 내역(출처 필터·API `source`/`type`)·적립 장소(데모)·상품권(데모)·결제·정산 옵션·가게(가맹 정산)**까지 한 앱 안에서 **“모으고 쓰고 정산”** 스토리를 보여 준다. 다만 UI에 **“온체인 월렛 A + 제휴 B”** 식의 **소스별 탭**은 없고, 통합은 **하나의 `user_id` 계정 잔액**으로만 표현된다.
 
 - **가게** (`/app/store`): 가맹점 ID, 정산 요청, **실제 정산금 유입 과정**(REQUESTED → AUTHORIZED → SETTLED), 정산 현황·전환 목록(**정산 완료 시 tx_hash·settlement_ref 표시**)
 - **관리자**: `pnpm dev:console` → http://localhost:5174 (사용자 검색, 수동 발급, 전환 승인/정산, **감사 로그**)
