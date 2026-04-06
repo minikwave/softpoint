@@ -9,7 +9,8 @@ export default function Landing() {
           <p className="landing-subtitle">PayPoint · 소비 크레딧</p>
         </header>
         <p className="landing-desc">
-          적립하고, 사용하고, 정산하는. 자산이 아닌 경험을 위한 크레딧입니다.
+          결제·이벤트·가맹 혜택에서 쌓인 가치를 한곳의 크레딧으로 모읍니다. 쓰고, 필요하면 정산까지.
+          자산이 아닌 소비 경험을 위한 레이어입니다.
         </p>
         <div className="landing-actions">
           <Link to="/app" className="landing-btn landing-btn-primary">
