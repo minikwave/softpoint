@@ -1,11 +1,21 @@
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+/** When API has USER_JWT_SECRET, set VITE_USER_JWT or localStorage paypoint_jwt (HS256, sub=user_id). */
+function userAuthHeaders(): Record<string, string> {
+  const fromEnv = import.meta.env.VITE_USER_JWT as string | undefined;
+  const fromLs =
+    typeof localStorage !== 'undefined' ? localStorage.getItem('paypoint_jwt') : null;
+  const token = (fromEnv?.trim() || fromLs?.trim()) ?? '';
+  if (token) return { Authorization: `Bearer ${token}` };
+  return {};
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<{ data?: T; error?: { code: string; message: string } }> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...userAuthHeaders(), ...options?.headers },
     ...options,
   });
   const json = await res.json().catch(() => ({}));

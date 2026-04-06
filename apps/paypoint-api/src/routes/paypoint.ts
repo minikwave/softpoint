@@ -1,12 +1,31 @@
-import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { getAccountByUserId, decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
 import { spendCredit } from '../services/spend.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { requestConversion, getConversion, listConversionsByUser } from '../services/conversion.js';
 import { prisma } from '../lib/prisma.js';
+import { isUserJwtEnforced, verifyUserBearerToken } from '../lib/userJwt.js';
 
 const PARAM_USER_ID = 'user_id';
+
+function userMatchesJwt(request: FastifyRequest, userId: string, reply: FastifyReply): boolean {
+  if (!isUserJwtEnforced()) return true;
+  if (!request.jwtUserId || request.jwtUserId !== userId) {
+    void reply.status(403).send({
+      error: { code: 'FORBIDDEN', message: 'JWT sub must match user_id for this operation' },
+    });
+    return false;
+  }
+  return true;
+}
+
+function storedUserId(obj: unknown): string | undefined {
+  if (obj && typeof obj === 'object' && 'userId' in obj && typeof (obj as { userId: unknown }).userId === 'string') {
+    return (obj as { userId: string }).userId;
+  }
+  return undefined;
+}
 
 /**
  * Map domain/engine errors to HTTP status and body.
@@ -23,11 +42,30 @@ export async function paypointRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  if (isUserJwtEnforced()) {
+    fastify.addHook('onRequest', async (request, reply) => {
+      const auth = request.headers.authorization;
+      if (!auth?.startsWith('Bearer ')) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Bearer token required (USER_JWT_SECRET is set)' },
+        });
+      }
+      try {
+        request.jwtUserId = await verifyUserBearerToken(auth.slice(7).trim());
+      } catch {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' },
+        });
+      }
+    });
+  }
+
   // GET /v1/paypoint/balance/:user_id
   fastify.get<{ Params: Record<typeof PARAM_USER_ID, string> }>(
     '/balance/:user_id',
     async (request, reply) => {
       const userId = request.params[PARAM_USER_ID];
+      if (!userMatchesJwt(request, userId, reply)) return;
       const account = await getAccountByUserId(userId);
       if (!account) {
         return reply.status(404).send({
@@ -51,6 +89,7 @@ export async function paypointRoutes(
     Querystring: { user_id: string; limit?: string; cursor?: string };
   }>('/transactions', async (request, reply) => {
     const { user_id, limit = '20', cursor } = request.query;
+    if (!userMatchesJwt(request, user_id, reply)) return;
     const take = Math.min(Number.parseInt(limit, 10) || 20, 100);
     const account = await getAccountByUserId(user_id);
     if (!account) {
@@ -93,6 +132,7 @@ export async function paypointRoutes(
     };
   }>('/issue', async (request, reply) => {
     const body = request.body;
+    if (!userMatchesJwt(request, body.user_id, reply)) return;
     const amount = BigInt(body.amount);
     if (amount <= 0n) {
       return reply.status(400).send({
@@ -104,6 +144,8 @@ export async function paypointRoutes(
     if (idempotencyKey) {
       const stored = await getIdempotentResponse(idempotencyKey);
       if (stored) {
+        const su = storedUserId(stored);
+        if (su && !userMatchesJwt(request, su, reply)) return;
         return reply.status(200).send(stored);
       }
     }
@@ -137,10 +179,14 @@ export async function paypointRoutes(
       });
     }
 
+    if (!userMatchesJwt(request, body.user_id, reply)) return;
+
     const idempotencyKey =
       body.idempotency_key ?? `spend:${body.user_id}:${body.order_id}`;
     const stored = await getIdempotentResponse(idempotencyKey);
     if (stored) {
+      const su = storedUserId(stored);
+      if (su && !userMatchesJwt(request, su, reply)) return;
       return reply.status(200).send(stored);
     }
 
@@ -172,6 +218,7 @@ export async function paypointRoutes(
     };
   }>('/conversion/request', async (request, reply) => {
     const body = request.body;
+    if (!userMatchesJwt(request, body.user_id, reply)) return;
     const amount = BigInt(body.from_amount);
     if (amount <= 0n) {
       return reply.status(400).send({
@@ -190,6 +237,8 @@ export async function paypointRoutes(
     if (idempotencyKey) {
       const stored = await getIdempotentResponse(idempotencyKey);
       if (stored) {
+        const su = storedUserId(stored);
+        if (su && !userMatchesJwt(request, su, reply)) return;
         return reply.status(200).send(stored);
       }
     }
@@ -220,12 +269,14 @@ export async function paypointRoutes(
         error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
       });
     }
+    if (!userMatchesJwt(request, conv.userId, reply)) return;
     return reply.send(conv);
   });
 
   // GET /v1/paypoint/conversions — list conversions for a user (own list)
-  fastify.get<{ Querystring: { user_id: string; limit?: string } }>('/conversions', async (request, reply) => {
+  fastify.get<{ Querystring: { user_id: string; limit?: string }   }>('/conversions', async (request, reply) => {
     const { user_id, limit = '50' } = request.query;
+    if (!userMatchesJwt(request, user_id, reply)) return;
     const take = Math.min(Number.parseInt(limit, 10) || 50, 100);
     const items = await listConversionsByUser(user_id, take);
     return reply.send({ user_id, items });

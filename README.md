@@ -33,6 +33,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 - **`GET /health`** — API 생존 확인 (인증 없음).
 - **`ADMIN_API_KEY`** — 루트 `.env`에 설정 시 모든 `/v1/admin/*` 요청에 `x-admin-api-key: <값>` 또는 `Authorization: Bearer <값>` 필요. 비우면 로컬 개발처럼 Admin이 열려 있음.
+- **`USER_JWT_SECRET`** — 설정 시 모든 `/v1/paypoint/*`에 `Authorization: Bearer <JWT>` 필수. JWT는 **HS256**, 클레임 **`sub` = user_id**(요청의 path/query/body `user_id`와 일치해야 함). 비우면 기존처럼 공개 데모 API. 웹앱은 `apps/saum-webapp/.env.development.local` 등에 `VITE_USER_JWT=<토큰>` 또는 브라우저 `localStorage.paypoint_jwt`로 동일 토큰을 넣을 수 있음(개발용).
 - **오퍼레이터 콘솔**: `pnpm dev:console` 시 Vite 프록시가 루트 `.env`의 `ADMIN_API_KEY`를 자동으로 붙입니다(API와 동일 값). 브라우저에 키를 넣지 않습니다.
 - **`POST /v1/paypoint/issue`**, **`POST /v1/admin/credits/issue`** — 본문에 `idempotency_key`(선택)를 주면 동일 키 재요청 시 **200** + 저장된 결과(첫 성공 시 본문과 동일). 키 없으면 기존처럼 매번 새 적립.
 - **`POST /v1/paypoint/conversion/request`** — `idempotency_key` 또는 `client_request_id`(선택)로 멱등. 웹앱은 매 요청에 `client_request_id`(UUID)를 붙여 네트워크 재시도 시 중복 생성을 줄임.
@@ -46,8 +47,8 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 | 구분 | 내용 |
 |------|------|
-| **구현됨 (MVP)** | Issue(선택 멱등 키)·Spend·Balance·Transactions(커서)·멱등, 전환 요청·조회, Admin(선택 **`ADMIN_API_KEY`**): 사용자·계정·수동 적립(선택 멱등)·전환·감사 로그, **`GET /health`**, 웹앱·콘솔 UI |
-| **미구현·스텁** | JWT·역할별 RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
+| **구현됨 (MVP)** | PayPoint(선택 **`USER_JWT_SECRET`**·Bearer·`sub`): Issue·Spend·Balance·Transactions·전환…, Admin(선택 **`ADMIN_API_KEY`**), **`GET /health`**, 웹앱·콘솔 UI |
+| **미구현·스텁** | Admin **역할별** RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
 | **데모 데이터** | 적립 장소 목록·지도 링크, 상품권 카탈로그(구매 시 Spend API는 실연동) |
 | **마켓플레이스** | 카탈로그·멀티 머천트·C2C 등 **전용 마켓 UI/API 없음** (상품권 페이지는 고정 목업) |
 
