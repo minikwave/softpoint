@@ -38,11 +38,12 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 | 구분 | 내용 |
 |------|------|
-| **구현됨 (MVP)** | Issue/Spend/Balance/Transactions(커서)·멱등, 전환 요청·조회·사용자 목록, Admin: 사용자 검색·계정·수동 적립·전환 승인/정산/실패, 웹앱·오퍼레이터 콘솔 UI |
-| **미구현·스텁** | API 인증·RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, 감사 로그 **조회** API, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
+| **구현됨 (MVP)** | Issue/Spend/Balance/Transactions(커서)·멱등, 전환 요청·조회·사용자 목록, Admin: 사용자 검색·계정·수동 적립·전환 승인/정산/실패, **`GET /v1/admin/audit-logs`**·콘솔 감사 로그, 전환 액션 감사 기록, 웹앱·오퍼레이터 콘솔 UI |
+| **미구현·스텁** | API 인증·RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
 | **데모 데이터** | 적립 장소 목록·지도 링크, 상품권 카탈로그(구매 시 Spend API는 실연동) |
+
 - **가게** (`/app/store`): 가맹점 ID, 정산 요청, **실제 정산금 유입 과정**(REQUESTED → AUTHORIZED → SETTLED), 정산 현황·전환 목록(**정산 완료 시 tx_hash·settlement_ref 표시**)
-- **관리자**: `pnpm dev:console` → http://localhost:5174 (사용자 검색, 수동 발급, 전환 승인/정산)
+- **관리자**: `pnpm dev:console` → http://localhost:5174 (사용자 검색, 수동 발급, 전환 승인/정산, **감사 로그**)
 - **빌드**: `pnpm install && pnpm run build` (전체 검증 완료)
 
 ## Conversion (PayPoint → Stable)

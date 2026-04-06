@@ -33,8 +33,9 @@ input, select { font-family: inherit; }
 
 .console-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.5rem 1.25rem;
   padding: 0.875rem 1.5rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -58,7 +59,7 @@ input, select { font-family: inherit; }
 .console-nav a.active { color: var(--accent); background: rgba(139, 157, 195, 0.15); }
 
 .main {
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 1.5rem;
 }
@@ -118,3 +119,14 @@ input, select { font-family: inherit; }
 
 .link { color: var(--accent); text-decoration: none; }
 .link:hover { text-decoration: underline; }
+
+.mono-small {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.audit-table td:last-child {
+  max-width: min(320px, 40vw);
+  vertical-align: top;
+}

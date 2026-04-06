@@ -72,6 +72,24 @@ export interface AdminConversionsRes {
   count: number;
 }
 
+export interface AuditLogItem {
+  id: string;
+  actor_id: string;
+  actor_role: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  before?: unknown;
+  after?: unknown;
+  request_id?: string;
+  created_at: string;
+}
+
+export interface AdminAuditLogsRes {
+  items: AuditLogItem[];
+  next_cursor: string | null;
+}
+
 export const adminApi = {
   getUsers(params?: { user_id?: string; status?: string; limit?: string }) {
     const q = new URLSearchParams();
@@ -122,5 +140,22 @@ export const adminApi = {
 
   failConversion(id: string) {
     return request<ConversionItem>(`/v1/admin/conversions/${id}/fail`, { method: 'POST' });
+  },
+
+  getAuditLogs(params?: {
+    actor_id?: string;
+    action?: string;
+    target_type?: string;
+    limit?: string;
+    cursor?: string;
+  }) {
+    const q = new URLSearchParams();
+    if (params?.actor_id) q.set('actor_id', params.actor_id);
+    if (params?.action) q.set('action', params.action);
+    if (params?.target_type) q.set('target_type', params.target_type);
+    if (params?.limit) q.set('limit', params.limit);
+    if (params?.cursor) q.set('cursor', params.cursor);
+    const query = q.toString();
+    return request<AdminAuditLogsRes>(`/v1/admin/audit-logs${query ? `?${query}` : ''}`);
   },
 };

@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { getAccountByUserId } from '../services/account.js';
 import { decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
-import { writeAuditLog } from '../services/audit.js';
+import { writeAuditLog, listAuditLogs } from '../services/audit.js';
 import {
   authorizeConversion,
   settleConversion,
@@ -22,6 +22,43 @@ export async function adminRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  // GET /v1/admin/audit-logs — append-only audit trail (newest first, cursor pagination)
+  fastify.get<{
+    Querystring: {
+      actor_id?: string;
+      action?: string;
+      target_type?: string;
+      limit?: string;
+      cursor?: string;
+    };
+  }>('/audit-logs', async (request, reply) => {
+    const { actor_id, action, target_type, limit = '50', cursor } = request.query;
+    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
+    const { rows, nextCursor } = await listAuditLogs({
+      actorId: actor_id,
+      action,
+      targetType: target_type,
+      limit: take,
+      cursor,
+    });
+
+    return reply.send({
+      items: rows.map((r) => ({
+        id: r.id,
+        actor_id: r.actorId,
+        actor_role: r.actorRole,
+        action: r.action,
+        target_type: r.targetType,
+        target_id: r.targetId,
+        before: r.before ?? undefined,
+        after: r.after ?? undefined,
+        request_id: r.requestId ?? undefined,
+        created_at: r.createdAt.toISOString(),
+      })),
+      next_cursor: nextCursor,
+    });
+  });
+
   // GET /v1/admin/users — search accounts by user_id (prefix match) or list with limit
   fastify.get<{
     Querystring: { user_id?: string; status?: string; limit?: string };
@@ -187,9 +224,29 @@ export async function adminRoutes(
   });
 
   // POST /v1/admin/conversions/:id/approve — authorize (lock credits)
-  fastify.post<{ Params: { id: string } }>('/conversions/:id/approve', async (request, reply) => {
+  fastify.post<{
+    Params: { id: string };
+    Body?: { actor_id?: string; actor_role?: string };
+  }>('/conversions/:id/approve', async (request, reply) => {
+    const body = request.body ?? {};
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
     try {
       const result = await authorizeConversion(request.params.id);
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'CONVERSION_APPROVE',
+        targetType: 'conversion',
+        targetId: result.id,
+        after: {
+          userId: result.userId,
+          status: result.status,
+          fromAmount: result.fromAmount,
+          type: result.type,
+        },
+        requestId: request.id,
+      });
       return reply.status(200).send(result);
     } catch (err) {
       const e = toHttpError(err);
@@ -200,12 +257,30 @@ export async function adminRoutes(
   // POST /v1/admin/conversions/:id/settle — settle (consume locked credits, optional tx_hash)
   fastify.post<{
     Params: { id: string };
-    Body: { tx_hash?: string; settlement_ref?: string };
+    Body?: { tx_hash?: string; settlement_ref?: string; actor_id?: string; actor_role?: string };
   }>('/conversions/:id/settle', async (request, reply) => {
+    const body = request.body ?? {};
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
     try {
       const result = await settleConversion(request.params.id, {
-        txHash: request.body?.tx_hash,
-        settlementRef: request.body?.settlement_ref,
+        txHash: body.tx_hash,
+        settlementRef: body.settlement_ref,
+      });
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'CONVERSION_SETTLE',
+        targetType: 'conversion',
+        targetId: result.id,
+        after: {
+          userId: result.userId,
+          status: result.status,
+          fromAmount: result.fromAmount,
+          txHash: result.txHash,
+          settlementRef: result.settlementRef,
+        },
+        requestId: request.id,
       });
       return reply.status(200).send(result);
     } catch (err) {
@@ -215,9 +290,28 @@ export async function adminRoutes(
   });
 
   // POST /v1/admin/conversions/:id/fail — fail (unlock credits)
-  fastify.post<{ Params: { id: string } }>('/conversions/:id/fail', async (request, reply) => {
+  fastify.post<{
+    Params: { id: string };
+    Body?: { actor_id?: string; actor_role?: string };
+  }>('/conversions/:id/fail', async (request, reply) => {
+    const body = request.body ?? {};
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
     try {
       const result = await failConversion(request.params.id);
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'CONVERSION_FAIL',
+        targetType: 'conversion',
+        targetId: result.id,
+        after: {
+          userId: result.userId,
+          status: result.status,
+          fromAmount: result.fromAmount,
+        },
+        requestId: request.id,
+      });
       return reply.status(200).send(result);
     } catch (err) {
       const e = toHttpError(err);
