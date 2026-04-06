@@ -82,7 +82,15 @@ export const api = {
     });
   },
 
-  requestConversion(body: { user_id: string; type: string; from_amount: string; to_asset: string; to_chain_id?: number }) {
+  requestConversion(body: {
+    user_id: string;
+    type: string;
+    from_amount: string;
+    to_asset: string;
+    to_chain_id?: number;
+    idempotency_key?: string;
+    client_request_id?: string;
+  }) {
     return request<ConversionRes>('/v1/paypoint/conversion/request', {
       method: 'POST',
       body: JSON.stringify(body),

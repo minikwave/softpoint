@@ -26,11 +26,16 @@ export default function Conversion() {
       return;
     }
     setLoading(true);
+    const clientRequestId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `conv_${userId}_${Date.now()}`;
     const { data, error: e2 } = await api.requestConversion({
       user_id: userId,
       type: 'MERCHANT_SETTLEMENT',
       from_amount: String(Math.floor(n)),
       to_asset: toAsset,
+      client_request_id: clientRequestId,
     });
     setLoading(false);
     if (e2) {

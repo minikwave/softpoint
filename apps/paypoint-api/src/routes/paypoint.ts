@@ -159,8 +159,17 @@ export async function paypointRoutes(
   });
 
   // POST /v1/paypoint/conversion/request — request PayPoint → Stable conversion (MVP: MERCHANT_SETTLEMENT)
+  // Optional idempotency: idempotency_key (full key) or client_request_id → key conversion:{user_id}:{client_request_id}
   fastify.post<{
-    Body: { user_id: string; type: string; from_amount: string; to_asset: string; to_chain_id?: number };
+    Body: {
+      user_id: string;
+      type: string;
+      from_amount: string;
+      to_asset: string;
+      to_chain_id?: number;
+      idempotency_key?: string;
+      client_request_id?: string;
+    };
   }>('/conversion/request', async (request, reply) => {
     const body = request.body;
     const amount = BigInt(body.from_amount);
@@ -169,6 +178,22 @@ export async function paypointRoutes(
         error: { code: 'INVALID_AMOUNT', message: 'Amount must be positive' },
       });
     }
+
+    const idemFull = body.idempotency_key?.trim();
+    const clientRef = body.client_request_id?.trim();
+    const idempotencyKey = idemFull
+      ? idemFull
+      : clientRef
+        ? `conversion:${body.user_id}:${clientRef}`
+        : undefined;
+
+    if (idempotencyKey) {
+      const stored = await getIdempotentResponse(idempotencyKey);
+      if (stored) {
+        return reply.status(200).send(stored);
+      }
+    }
+
     try {
       const result = await requestConversion({
         userId: body.user_id,
@@ -177,6 +202,9 @@ export async function paypointRoutes(
         toAsset: body.to_asset,
         toChainId: body.to_chain_id,
       });
+      if (idempotencyKey) {
+        await setIdempotentResponse(idempotencyKey, result as object);
+      }
       return reply.status(201).send(result);
     } catch (err) {
       const e = toHttpError(err);

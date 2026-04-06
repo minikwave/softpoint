@@ -35,6 +35,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 - **`ADMIN_API_KEY`** — 루트 `.env`에 설정 시 모든 `/v1/admin/*` 요청에 `x-admin-api-key: <값>` 또는 `Authorization: Bearer <값>` 필요. 비우면 로컬 개발처럼 Admin이 열려 있음.
 - **오퍼레이터 콘솔**: `pnpm dev:console` 시 Vite 프록시가 루트 `.env`의 `ADMIN_API_KEY`를 자동으로 붙입니다(API와 동일 값). 브라우저에 키를 넣지 않습니다.
 - **`POST /v1/paypoint/issue`**, **`POST /v1/admin/credits/issue`** — 본문에 `idempotency_key`(선택)를 주면 동일 키 재요청 시 **200** + 저장된 결과(첫 성공 시 본문과 동일). 키 없으면 기존처럼 매번 새 적립.
+- **`POST /v1/paypoint/conversion/request`** — `idempotency_key` 또는 `client_request_id`(선택)로 멱등. 웹앱은 매 요청에 `client_request_id`(UUID)를 붙여 네트워크 재시도 시 중복 생성을 줄임.
 
 ## 랜딩 및 디앱
 
