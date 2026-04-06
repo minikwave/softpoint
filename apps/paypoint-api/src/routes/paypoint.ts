@@ -82,9 +82,15 @@ export async function paypointRoutes(
     });
   });
 
-  // POST /v1/paypoint/issue
+  // POST /v1/paypoint/issue (optional idempotency_key — replays return 200 + same body)
   fastify.post<{
-    Body: { user_id: string; amount: string; reason: string; expires_at?: string };
+    Body: {
+      user_id: string;
+      amount: string;
+      reason: string;
+      expires_at?: string;
+      idempotency_key?: string;
+    };
   }>('/issue', async (request, reply) => {
     const body = request.body;
     const amount = BigInt(body.amount);
@@ -93,6 +99,15 @@ export async function paypointRoutes(
         error: { code: 'INVALID_AMOUNT', message: 'Amount must be positive' },
       });
     }
+
+    const idempotencyKey = body.idempotency_key?.trim();
+    if (idempotencyKey) {
+      const stored = await getIdempotentResponse(idempotencyKey);
+      if (stored) {
+        return reply.status(200).send(stored);
+      }
+    }
+
     try {
       const result = await issueCredit({
         userId: body.user_id,
@@ -100,6 +115,9 @@ export async function paypointRoutes(
         reason: body.reason,
         expiresAt: body.expires_at,
       });
+      if (idempotencyKey) {
+        await setIdempotentResponse(idempotencyKey, result as object);
+      }
       return reply.status(201).send(result);
     } catch (err) {
       const e = toHttpError(err);

@@ -6,6 +6,8 @@ import { adminRoutes } from './routes/admin.js';
 const server = Fastify({ logger: true });
 
 async function main() {
+  server.get('/health', async () => ({ status: 'ok', service: 'paypoint-api' }));
+
   await server.register(cors, { origin: true });
   await server.register(paypointRoutes, { prefix: '/v1/paypoint' });
   await server.register(adminRoutes, { prefix: '/v1/admin' });

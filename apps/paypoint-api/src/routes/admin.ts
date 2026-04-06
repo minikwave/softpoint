@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../lib/prisma.js';
+import { getRequiredAdminApiKey, extractAdminApiKey } from '../lib/adminAuth.js';
+import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { getAccountByUserId } from '../services/account.js';
 import { decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
@@ -22,6 +24,18 @@ export async function adminRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  const adminKey = getRequiredAdminApiKey();
+  if (adminKey) {
+    fastify.addHook('onRequest', async (request, reply) => {
+      const provided = extractAdminApiKey(request.headers);
+      if (provided !== adminKey) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Invalid or missing admin API key' },
+        });
+      }
+    });
+  }
+
   // GET /v1/admin/audit-logs — append-only audit trail (newest first, cursor pagination)
   fastify.get<{
     Querystring: {
@@ -147,6 +161,7 @@ export async function adminRoutes(
       expires_at?: string;
       actor_id?: string;
       actor_role?: string;
+      idempotency_key?: string;
     };
   }>('/credits/issue', async (request, reply) => {
     const body = request.body;
@@ -160,6 +175,14 @@ export async function adminRoutes(
     const actorId = body.actor_id ?? 'system';
     const actorRole = body.actor_role ?? 'Ops Admin';
 
+    const idempotencyKey = body.idempotency_key?.trim();
+    if (idempotencyKey) {
+      const stored = await getIdempotentResponse(idempotencyKey);
+      if (stored) {
+        return reply.status(200).send(stored);
+      }
+    }
+
     try {
       const result = await issueCredit({
         userId: body.user_id,
@@ -167,6 +190,10 @@ export async function adminRoutes(
         reason: body.reason,
         expiresAt: body.expires_at,
       });
+
+      if (idempotencyKey) {
+        await setIdempotentResponse(idempotencyKey, result as object);
+      }
 
       await writeAuditLog({
         actorId,

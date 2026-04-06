@@ -29,6 +29,13 @@ pnpm dev:webapp        # run WebApp (http://localhost:5173, proxies /v1 to API)
 pnpm dev:console       # run Operator Console (http://localhost:5174)
 ```
 
+### 운영·보안 (선택)
+
+- **`GET /health`** — API 생존 확인 (인증 없음).
+- **`ADMIN_API_KEY`** — 루트 `.env`에 설정 시 모든 `/v1/admin/*` 요청에 `x-admin-api-key: <값>` 또는 `Authorization: Bearer <값>` 필요. 비우면 로컬 개발처럼 Admin이 열려 있음.
+- **오퍼레이터 콘솔**: `pnpm dev:console` 시 Vite 프록시가 루트 `.env`의 `ADMIN_API_KEY`를 자동으로 붙입니다(API와 동일 값). 브라우저에 키를 넣지 않습니다.
+- **`POST /v1/paypoint/issue`**, **`POST /v1/admin/credits/issue`** — 본문에 `idempotency_key`(선택)를 주면 동일 키 재요청 시 **200** + 저장된 결과(첫 성공 시 본문과 동일). 키 없으면 기존처럼 매번 새 적립.
+
 ## 랜딩 및 디앱
 
 - **랜딩** (`/`): 마케팅/진입 전용. 상단 디앱 네비게이션 없음. **디앱 들어가기** → `/app`, **가게 관리** → `/app/store`
@@ -38,8 +45,8 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 | 구분 | 내용 |
 |------|------|
-| **구현됨 (MVP)** | Issue/Spend/Balance/Transactions(커서)·멱등, 전환 요청·조회·사용자 목록, Admin: 사용자 검색·계정·수동 적립·전환 승인/정산/실패, **`GET /v1/admin/audit-logs`**·콘솔 감사 로그, 전환 액션 감사 기록, 웹앱·오퍼레이터 콘솔 UI |
-| **미구현·스텁** | API 인증·RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
+| **구현됨 (MVP)** | Issue(선택 멱등 키)·Spend·Balance·Transactions(커서)·멱등, 전환 요청·조회, Admin(선택 **`ADMIN_API_KEY`**): 사용자·계정·수동 적립(선택 멱등)·전환·감사 로그, **`GET /health`**, 웹앱·콘솔 UI |
+| **미구현·스텁** | JWT·역할별 RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
 | **데모 데이터** | 적립 장소 목록·지도 링크, 상품권 카탈로그(구매 시 Spend API는 실연동) |
 
 - **가게** (`/app/store`): 가맹점 ID, 정산 요청, **실제 정산금 유입 과정**(REQUESTED → AUTHORIZED → SETTLED), 정산 현황·전환 목록(**정산 완료 시 tx_hash·settlement_ref 표시**)
