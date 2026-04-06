@@ -85,7 +85,28 @@ export interface ConversionsListRes {
   items: ConversionRes[];
 }
 
+export interface EarnLocationItem {
+  id: string;
+  name: string;
+  category: string;
+  address: string;
+  lat: number;
+  lng: number;
+  earn_rate?: string;
+}
+
+export interface EarnLocationsRes {
+  items: EarnLocationItem[];
+}
+
 export const api = {
+  getEarnLocations(opts?: { category?: string }) {
+    const params = new URLSearchParams();
+    if (opts?.category?.trim()) params.set('category', opts.category.trim());
+    const q = params.toString();
+    return request<EarnLocationsRes>(`/v1/paypoint/earn-locations${q ? `?${q}` : ''}`);
+  },
+
   getBalance(userId: string) {
     return request<BalanceRes>(`/v1/paypoint/balance/${encodeURIComponent(userId)}`);
   },

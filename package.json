@@ -17,7 +17,8 @@
     "build:and:serve": "pnpm run build && pnpm run serve",
     "db:generate": "pnpm --filter paypoint-api run db:generate",
     "db:migrate": "pnpm --filter paypoint-api run db:migrate",
-    "db:push": "pnpm --filter paypoint-api run db:push"
+    "db:push": "pnpm --filter paypoint-api run db:push",
+    "db:seed": "pnpm --filter paypoint-api run db:seed"
   },
   "engines": {
     "node": ">=20"

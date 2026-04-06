@@ -63,6 +63,29 @@ export async function paypointRoutes(
     });
   }
 
+  // GET /v1/paypoint/earn-locations — 가맹·적립 장소 목록 (JWT 적용 시에도 user_id 불필요)
+  fastify.get<{ Querystring: { category?: string } }>('/earn-locations', async (request, reply) => {
+    const cat = request.query.category?.trim();
+    const rows = await prisma.paypointEarnLocation.findMany({
+      where: {
+        isActive: true,
+        ...(cat ? { category: cat } : {}),
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    return reply.send({
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        address: r.address,
+        lat: Number(r.lat),
+        lng: Number(r.lng),
+        earn_rate: r.earnRate ?? undefined,
+      })),
+    });
+  });
+
   // GET /v1/paypoint/balance/:user_id
   fastify.get<{ Params: Record<typeof PARAM_USER_ID, string> }>(
     '/balance/:user_id',

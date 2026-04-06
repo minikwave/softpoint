@@ -92,3 +92,21 @@ model IdempotencyRecord {
 
   @@map("idempotency_records")
 }
+
+/// 가맹·적립 장소 마스터 (디앱 EarnMap, M1-4)
+model PaypointEarnLocation {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.Text
+  category   String   @db.Text
+  address    String   @db.Text
+  lat        Decimal  @db.Decimal(10, 7)
+  lng        Decimal  @db.Decimal(10, 7)
+  earnRate   String?  @map("earn_rate") @db.Text
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive, sortOrder])
+  @@map("paypoint_earn_locations")
+}

@@ -24,6 +24,7 @@ packages/
 pnpm install
 cp .env.example .env   # set DATABASE_URL
 pnpm db:push           # create DB tables
+pnpm db:seed           # (선택) 적립 장소 데모 데이터 paypoint_earn_locations
 pnpm dev               # run API (http://localhost:3000)
 pnpm dev:webapp        # run WebApp (http://localhost:5173, proxies /v1 to API)
 pnpm dev:console       # run Operator Console (http://localhost:5174)
@@ -38,6 +39,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 - **`POST /v1/paypoint/issue`**, **`POST /v1/admin/credits/issue`** — 본문에 `idempotency_key`(선택)를 주면 동일 키 재요청 시 **200** + 저장된 결과(첫 성공 시 본문과 동일). 키 없으면 기존처럼 매번 새 적립.
 - **`POST /v1/paypoint/conversion/request`** — `idempotency_key` 또는 `client_request_id`(선택)로 멱등. 웹앱은 매 요청에 `client_request_id`(UUID)를 붙여 네트워크 재시도 시 중복 생성을 줄임.
 - **`GET /v1/paypoint/transactions`** — 쿼리 `user_id`(필수), `limit`, `cursor`, 선택 **`type`**(`ISSUE`|`SPEND`|`EXPIRE`|`ADJUST`), 선택 **`source`**(트랜잭션 `metadata.source`와 **전체 문자열 일치**). 디앱 **적립 내역**은 `type=ISSUE`와 출처 필터를 조합해 조회한다.
+- **`GET /v1/paypoint/earn-locations`** — 가맹·적립 장소 목록. 선택 쿼리 **`category`**(전체 일치). 테이블 `paypoint_earn_locations`; 로컬 데모는 `pnpm db:seed`.
 
 ### 멱등 키 운영 가이드 (필수 vs 선택)
 
@@ -50,6 +52,10 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 
 운영 권장: 네트워크 재시도·클라이언트 중복 클릭이 있는 **쓰기**에는 가능하면 명시적 멱등 키(또는 전환의 `client_request_id`)를 붙인다. **읽기**(balance, transactions 등)는 멱등이 아니어도 되며, 위 표는 **쓰기** 기준이다.
 
+### PostgreSQL 트랜잭션·락 (P0-4)
+
+Spend·전환 경로는 계정 행 **`SELECT FOR UPDATE`**로 동시 갱신을 직렬화한다. 격리 수준·연결 풀·타임아웃·이슈 적립 시 `FOR UPDATE` 검토 등은 [docs/POSTGRES_TRANSACTION_OPS.md](./docs/POSTGRES_TRANSACTION_OPS.md)를 참고한다.
+
 ## 랜딩 및 디앱
 
 - **랜딩** (`/`): 마케팅/진입 전용. 상단 디앱 네비게이션 없음. **디앱 들어가기** → `/app`, **가게 관리** → `/app/store`
@@ -61,7 +67,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 |------|------|
 | **구현됨 (MVP)** | PayPoint(선택 **`USER_JWT_SECRET`**·Bearer·`sub`): Issue·Spend·Balance·Transactions·전환…, Admin(선택 **`ADMIN_API_KEY`**), **`GET /health`**, 웹앱·콘솔 UI |
 | **미구현·스텁** | Admin **역할별** RBAC·2인 승인, 정책 draft/submit/activate API, 예외 큐, Conversion Router 실연동(DEX/CEX), `paypoint-worker`, Mobile 셸 |
-| **데모 데이터** | 적립 장소 목록·지도 링크, 상품권 카탈로그(구매 시 Spend API는 실연동) |
+| **데모 데이터** | 적립 장소는 DB 시드 + `GET /earn-locations`; 상품권 카탈로그(구매 시 Spend API는 실연동) |
 | **마켓플레이스** | 카탈로그·멀티 머천트·C2C 등 **전용 마켓 UI/API 없음** (상품권 페이지는 고정 목업) |
 
 ### 제품 관점: 머지(통합)와 모음(쌓음)
