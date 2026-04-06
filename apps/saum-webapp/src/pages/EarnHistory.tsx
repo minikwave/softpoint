@@ -73,6 +73,7 @@ export default function EarnHistory() {
                 <thead>
                   <tr>
                     <th>적립 금액</th>
+                    <th>출처</th>
                     <th>관련 주문</th>
                     <th>적립 일시</th>
                   </tr>
@@ -81,6 +82,11 @@ export default function EarnHistory() {
                   {items.map((t) => (
                     <tr key={t.tx_id}>
                       <td className="earn-amount">+{formatAmount(t.amount)} PP</td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {t.metadata && typeof t.metadata === 'object' && 'source' in t.metadata && typeof (t.metadata as { source: unknown }).source === 'string'
+                          ? (t.metadata as { source: string }).source
+                          : '—'}
+                      </td>
                       <td>{t.order_id ?? '—'}</td>
                       <td>{formatDate(t.created_at)}</td>
                     </tr>

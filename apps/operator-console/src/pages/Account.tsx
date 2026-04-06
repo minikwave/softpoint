@@ -34,6 +34,9 @@ export default function Account() {
 
   const [issueAmount, setIssueAmount] = useState('');
   const [issueReason, setIssueReason] = useState('');
+  const [issueSource, setIssueSource] = useState('');
+  const [issueExternalRef, setIssueExternalRef] = useState('');
+  const [issueCampaignId, setIssueCampaignId] = useState('');
   const [issueSubmitting, setIssueSubmitting] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
   const [issueSuccess, setIssueSuccess] = useState(false);
@@ -79,6 +82,9 @@ export default function Account() {
       reason,
       actor_id: 'console',
       actor_role: 'Ops Admin',
+      ...(issueSource.trim() ? { source: issueSource.trim() } : {}),
+      ...(issueExternalRef.trim() ? { external_ref: issueExternalRef.trim() } : {}),
+      ...(issueCampaignId.trim() ? { campaign_id: issueCampaignId.trim() } : {}),
     });
     setIssueSubmitting(false);
     if (err) {
@@ -89,6 +95,9 @@ export default function Account() {
       setIssueSuccess(true);
       setIssueAmount('');
       setIssueReason('');
+      setIssueSource('');
+      setIssueExternalRef('');
+      setIssueCampaignId('');
       fetchAccount();
     }
   };
@@ -142,6 +151,33 @@ export default function Account() {
                   placeholder="예: 프로모션, CS 보상"
                 />
               </div>
+              <div className="form-row">
+                <label>적립 출처 source (선택, 비우면 admin_manual)</label>
+                <input
+                  type="text"
+                  value={issueSource}
+                  onChange={(e) => setIssueSource(e.target.value)}
+                  placeholder="예: campaign_winter, partner_x"
+                />
+              </div>
+              <div className="form-row">
+                <label>external_ref (선택)</label>
+                <input
+                  type="text"
+                  value={issueExternalRef}
+                  onChange={(e) => setIssueExternalRef(e.target.value)}
+                  placeholder="외부 주문·이벤트 ID"
+                />
+              </div>
+              <div className="form-row">
+                <label>campaign_id (선택)</label>
+                <input
+                  type="text"
+                  value={issueCampaignId}
+                  onChange={(e) => setIssueCampaignId(e.target.value)}
+                  placeholder="캠페인 식별자"
+                />
+              </div>
               {issueError && <div className="msg-error">{issueError}</div>}
               {issueSuccess && <div className="msg-success">발급 완료. 잔액이 반영되었습니다.</div>}
               <button type="submit" className="btn btn-primary" disabled={issueSubmitting}>
@@ -161,6 +197,7 @@ export default function Account() {
                     <tr>
                       <th>유형</th>
                       <th>금액</th>
+                      <th>출처</th>
                       <th>주문 ID</th>
                       <th>일시</th>
                     </tr>
@@ -170,6 +207,11 @@ export default function Account() {
                       <tr key={t.tx_id}>
                         <td><span className={`badge ${typeBadge(t.type)}`}>{t.type}</span></td>
                         <td>{formatAmount(t.amount)} PP</td>
+                        <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          {t.metadata && typeof t.metadata === 'object' && 'source' in t.metadata && typeof (t.metadata as { source: unknown }).source === 'string'
+                            ? (t.metadata as { source: string }).source
+                            : '—'}
+                        </td>
                         <td>{t.order_id ?? '—'}</td>
                         <td>{formatDate(t.created_at)}</td>
                       </tr>

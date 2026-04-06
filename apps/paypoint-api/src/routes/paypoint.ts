@@ -108,13 +108,14 @@ export async function paypointRoutes(
     const nextCursor = hasMore ? list[list.length - 1]?.id ?? null : null;
     return reply.send({
       user_id: user_id,
-      items: list.map((t: { id: string; accountId: string; type: string; amount: { toString(): string }; orderId: string | null; receiptId: string | null; createdAt: Date }) => ({
+      items: list.map((t: { id: string; accountId: string; type: string; amount: { toString(): string }; orderId: string | null; receiptId: string | null; metadata: unknown; createdAt: Date }) => ({
         tx_id: t.id,
         account_id: t.accountId,
         type: t.type,
         amount: t.amount.toString(),
         order_id: t.orderId ?? undefined,
         receipt_id: t.receiptId ?? undefined,
+        metadata: t.metadata ?? undefined,
         created_at: t.createdAt.toISOString(),
       })),
       next_cursor: nextCursor,
@@ -129,6 +130,9 @@ export async function paypointRoutes(
       reason: string;
       expires_at?: string;
       idempotency_key?: string;
+      source?: string;
+      external_ref?: string;
+      campaign_id?: string;
     };
   }>('/issue', async (request, reply) => {
     const body = request.body;
@@ -156,6 +160,9 @@ export async function paypointRoutes(
         amount,
         reason: body.reason,
         expiresAt: body.expires_at,
+        source: body.source,
+        externalRef: body.external_ref,
+        campaignId: body.campaign_id,
       });
       if (idempotencyKey) {
         await setIdempotentResponse(idempotencyKey, result as object);

@@ -38,6 +38,7 @@ export interface TransactionItem {
   amount: string;
   order_id?: string;
   receipt_id?: string;
+  metadata?: Record<string, unknown>;
   created_at: string;
 }
 

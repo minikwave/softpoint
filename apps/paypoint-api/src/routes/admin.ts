@@ -162,6 +162,9 @@ export async function adminRoutes(
       actor_id?: string;
       actor_role?: string;
       idempotency_key?: string;
+      source?: string;
+      external_ref?: string;
+      campaign_id?: string;
     };
   }>('/credits/issue', async (request, reply) => {
     const body = request.body;
@@ -189,6 +192,9 @@ export async function adminRoutes(
         amount,
         reason: body.reason,
         expiresAt: body.expires_at,
+        source: body.source ?? 'admin_manual',
+        externalRef: body.external_ref,
+        campaignId: body.campaign_id,
       });
 
       if (idempotencyKey) {
@@ -206,6 +212,9 @@ export async function adminRoutes(
           amount: result.amount,
           reason: body.reason,
           tx_id: result.txId,
+          source: body.source ?? 'admin_manual',
+          external_ref: body.external_ref,
+          campaign_id: body.campaign_id,
         },
         requestId: request.id,
       });
@@ -258,6 +267,14 @@ export async function adminRoutes(
     const body = request.body ?? {};
     const actorId = body.actor_id ?? 'system';
     const actorRole = body.actor_role ?? 'Ops Admin';
+    const convBefore = await prisma.paypointConversion.findUnique({
+      where: { id: request.params.id },
+    });
+    if (!convBefore) {
+      return reply.status(404).send({
+        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
+      });
+    }
     try {
       const result = await authorizeConversion(request.params.id);
       await writeAuditLog({
@@ -266,6 +283,12 @@ export async function adminRoutes(
         action: 'CONVERSION_APPROVE',
         targetType: 'conversion',
         targetId: result.id,
+        before: {
+          status: convBefore.status,
+          user_id: convBefore.userId,
+          from_amount: convBefore.fromAmount.toString(),
+          type: convBefore.type,
+        },
         after: {
           userId: result.userId,
           status: result.status,
@@ -289,6 +312,14 @@ export async function adminRoutes(
     const body = request.body ?? {};
     const actorId = body.actor_id ?? 'system';
     const actorRole = body.actor_role ?? 'Ops Admin';
+    const convBefore = await prisma.paypointConversion.findUnique({
+      where: { id: request.params.id },
+    });
+    if (!convBefore) {
+      return reply.status(404).send({
+        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
+      });
+    }
     try {
       const result = await settleConversion(request.params.id, {
         txHash: body.tx_hash,
@@ -300,6 +331,11 @@ export async function adminRoutes(
         action: 'CONVERSION_SETTLE',
         targetType: 'conversion',
         targetId: result.id,
+        before: {
+          status: convBefore.status,
+          user_id: convBefore.userId,
+          from_amount: convBefore.fromAmount.toString(),
+        },
         after: {
           userId: result.userId,
           status: result.status,
@@ -324,6 +360,14 @@ export async function adminRoutes(
     const body = request.body ?? {};
     const actorId = body.actor_id ?? 'system';
     const actorRole = body.actor_role ?? 'Ops Admin';
+    const convBefore = await prisma.paypointConversion.findUnique({
+      where: { id: request.params.id },
+    });
+    if (!convBefore) {
+      return reply.status(404).send({
+        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
+      });
+    }
     try {
       const result = await failConversion(request.params.id);
       await writeAuditLog({
@@ -332,6 +376,11 @@ export async function adminRoutes(
         action: 'CONVERSION_FAIL',
         targetType: 'conversion',
         targetId: result.id,
+        before: {
+          status: convBefore.status,
+          user_id: convBefore.userId,
+          from_amount: convBefore.fromAmount.toString(),
+        },
         after: {
           userId: result.userId,
           status: result.status,

@@ -66,6 +66,10 @@ export interface IssueCreditInput {
   amount: string;
   reason: string;
   expires_at?: string;
+  /** 적립 출처·외부 참조·캠페인 (트랜잭션 metadata에 저장) */
+  source?: string;
+  external_ref?: string;
+  campaign_id?: string;
 }
 
 export interface SpendCreditInput {

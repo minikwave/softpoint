@@ -43,6 +43,7 @@ export interface AdminAccountRes {
     amount: string;
     order_id?: string;
     receipt_id?: string;
+    metadata?: unknown;
     created_at: string;
   }>;
 }
@@ -111,6 +112,9 @@ export const adminApi = {
     expires_at?: string;
     actor_id?: string;
     actor_role?: string;
+    source?: string;
+    external_ref?: string;
+    campaign_id?: string;
   }) {
     return request<IssueRes>('/v1/admin/credits/issue', {
       method: 'POST',

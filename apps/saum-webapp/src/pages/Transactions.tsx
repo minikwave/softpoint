@@ -17,6 +17,14 @@ function formatAmount(s: string): string {
   return n.toLocaleString('ko-KR');
 }
 
+function txSourceLabel(meta: unknown): string {
+  if (meta && typeof meta === 'object' && 'source' in meta) {
+    const s = (meta as { source: unknown }).source;
+    if (typeof s === 'string' && s.trim()) return s;
+  }
+  return '—';
+}
+
 function typeBadge(type: string): string {
   const t = type.toLowerCase();
   if (t === 'issue') return 'badge-issue';
@@ -79,6 +87,7 @@ export default function Transactions() {
                   <tr>
                     <th>유형</th>
                     <th>금액</th>
+                    <th>출처</th>
                     <th>주문 ID</th>
                     <th>일시</th>
                   </tr>
@@ -90,6 +99,7 @@ export default function Transactions() {
                         <span className={`badge ${typeBadge(t.type)}`}>{t.type}</span>
                       </td>
                       <td>{formatAmount(t.amount)} PP</td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{txSourceLabel(t.metadata)}</td>
                       <td>{t.order_id ?? '—'}</td>
                       <td>{formatDate(t.created_at)}</td>
                     </tr>
