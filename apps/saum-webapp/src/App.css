@@ -6,18 +6,52 @@
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.75rem 1.25rem;
   padding: 1rem 1.5rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
+.nav-brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .nav-brand {
   font-weight: 700;
   font-size: 1.125rem;
-  margin-right: 0.5rem;
   color: var(--accent);
+  text-decoration: none;
+}
+
+.nav-brand:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.nav-app-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .nav-link {
@@ -43,6 +77,11 @@
   max-width: 640px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* 디앱 영역: 랜딩과 구분되는 앱 셸 */
+.app-dapp {
+  background: linear-gradient(180deg, rgba(22, 26, 32, 0.65) 0%, var(--bg) 28%);
 }
 
 .page-title {
@@ -159,6 +198,20 @@
   font-weight: 500;
 }
 
+.demo-pill {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: rgba(126, 184, 218, 0.08);
+}
+
 .badge-issue { background: rgba(143, 188, 143, 0.2); color: var(--success); }
 .badge-spend { background: rgba(126, 184, 218, 0.2); color: var(--accent); }
 .badge-expire { background: rgba(139, 146, 160, 0.3); color: var(--text-muted); }
@@ -193,7 +246,7 @@
   padding: 1.5rem 0;
 }
 
-/* Landing */
+/* Landing — 마케팅/진입 전용 (상단 디앱 네비 없음) */
 .landing {
   min-height: 100vh;
   display: flex;
@@ -201,6 +254,8 @@
   justify-content: center;
   padding: 2rem;
   text-align: center;
+  background: radial-gradient(ellipse 120% 90% at 50% -15%, rgba(126, 184, 218, 0.14), transparent 52%),
+    var(--bg);
 }
 
 .landing-inner {
@@ -262,8 +317,18 @@
   border: 1px solid var(--border);
 }
 
+.landing-hint {
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .landing-admin {
-  margin-top: 2rem;
+  margin-top: 1.25rem;
   font-size: 0.8rem;
   color: var(--text-muted);
 }
