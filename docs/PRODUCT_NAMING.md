@@ -27,6 +27,7 @@
 
 ## 참고 위치
 
+- 협업 기본값: 루트 [`AGENTS.md`](../AGENTS.md)
 - UI: `apps/saum-webapp/src/pages/Landing.tsx`, `apps/saum-webapp/src/App.tsx`
 - 패키지: 루트 `package.json`, `apps/saum-webapp/package.json`
 - 문서: `README.md` 제목 `PayPoint (saum)`, 「제품 관점: 머지(통합)와 쌓음(saum)」
