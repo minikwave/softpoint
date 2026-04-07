@@ -1,5 +1,7 @@
 import { Routes, Route, NavLink, Navigate, Outlet, Link } from 'react-router-dom';
 import Landing from './pages/Landing';
+import Product from './pages/Product';
+import Developers from './pages/Developers';
 import Balance from './pages/Balance';
 import Transactions from './pages/Transactions';
 import Spend from './pages/Spend';
@@ -58,6 +60,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/product" element={<Product />} />
+      <Route path="/developers" element={<Developers />} />
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Navigate to="/app/balance" replace />} />
         <Route path="balance" element={<Balance />} />
