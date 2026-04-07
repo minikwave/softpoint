@@ -1,6 +1,6 @@
 # 현재 구조·기능·UX·사용성 정리 & 추후 유저 플로우
 
-PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵 ID는 [PROJECT_ANALYSIS_AND_PLAN.md §10](../PROJECT_ANALYSIS_AND_PLAN.md)를 본다.
+PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵 ID는 [PROJECT_ANALYSIS_AND_PLAN.md §10](../PROJECT_ANALYSIS_AND_PLAN.md)를 본다(`PG-` `DC-` `UX-` `MSG-` 포함).
 
 ---
 
@@ -149,7 +149,7 @@ PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵
 | 수동 적립·전환 | 콘솔 | RBAC·2인 승인·역할별 메뉴 |
 | 정책 | 워크플로+Spend 연동(퍼센트) | 구간 정책·A/B·드라이런 |
 | 예외 | 수동 큐 | 엔진 자동 적재·SLA·에스컬레이션 |
-| 감사 | 조회 |보내기·보관 정책 |
+| 감사 | 조회 | Export·보관 정책 |
 
 ### 6.4 머지(통합 포인트)·모음(쌓음) 스토리
 
@@ -166,12 +166,34 @@ PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵
 - **현재**: 반응형 웹 수준.
 - **추후**: WebView 셸·푸시·만료 배치·리포트(`paypoint-worker`, W1-* ).
 
+### 6.7 포인트 상품권·선불 할인(미래 가치를 할인가에)
+
+- **아이디어**: 액면 **3만 PP**와 같은 **미래 사용 권리**를, 현재 **2만 7천원** 등 할인된 법정화폐로 판매.
+- **가능한 움직임**: 선수금/이연수익 회계, 유효기간·취소·부분환불, 리딤 시 `issue` 또는 바우처와 매핑.
+- **백로그**: [PROJECT_ANALYSIS_AND_PLAN.md §10.5](../PROJECT_ANALYSIS_AND_PLAN.md) `PG-1`~`PG-2` 및 `MP-1`과 정합.
+
+### 6.8 PCI 충전 → PayPoint → 디지털 수집품 → 2차 수요자 혜택
+
+- **플로우**: 사용자가 **PCI(카드 등)** 로 내부 **충전** → 잔액으로 **디지털 수집품** 구매(`Spend`) → 보유자·이벤트 기준으로 **추후 수요자**에게 에어드롭·리딤·쿠폰 등 **풀필먼트**.
+- **백로그**: `PG-3`(충전·PG 연동), `DC-1`~`DC-3`(수집품·큐·배송 메타), `W1-1`(worker).
+
+### 6.9 포인트 앱 수준의 정보·허브 UX
+
+- **목표**: **내 포인트 얼마**, **어디서 쓰나**, **사용/적립 내역**, **더 모으는 방법**을 **최소 탭 이동**으로 파악(국내 포인트 앱 벤치마크).
+- **백로그**: §10.8 `UX-1`~`UX-4`(허브 홈·사용처 통합·내역 고도화·미션).
+
+### 6.10 메신저·채널
+
+- **텔레그램**: 봇/WebApp으로 잔액·알림·딥링크 — `MSG-1` 우선.
+- **기타**: Discord 등은 `MSG-2` 후순위.
+- **카카오톡**: 비즈니스·심사·비용 이슈로 **`MSG-3` 장기·당분간 비우선**(요청대로 지금은 설계만 로드맵 고정).
+
 ---
 
 ## 7. 관련 문서
 
 - [README.md](../README.md) — 설치·환경·멱등·랜딩/디앱 요약  
-- [PROJECT_ANALYSIS_AND_PLAN.md](../PROJECT_ANALYSIS_AND_PLAN.md) — §5 로드맵, §10 백로그 ID  
+- [PROJECT_ANALYSIS_AND_PLAN.md](../PROJECT_ANALYSIS_AND_PLAN.md) — §5 로드맵, §10 백로그(`PG-` `DC-` `UX-` `MSG-` 포함)  
 - [PAYPOINT_EARN_POLICY_AND_FLOW.md](./PAYPOINT_EARN_POLICY_AND_FLOW.md) — 적립 정책 개념  
 - [POSTGRES_TRANSACTION_OPS.md](./POSTGRES_TRANSACTION_OPS.md) — DB 락·격리 운영 메모  
 
