@@ -4,6 +4,7 @@ import Account from './pages/Account';
 import Conversions from './pages/Conversions';
 import AuditLogs from './pages/AuditLogs';
 import Policies from './pages/Policies';
+import Exceptions from './pages/Exceptions';
 
 export default function App() {
   return (
@@ -15,6 +16,9 @@ export default function App() {
         </NavLink>
         <NavLink to="/policies" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
           정책
+        </NavLink>
+        <NavLink to="/exceptions" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
+          예외
         </NavLink>
         <NavLink to="/conversions" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
           전환 (PayPoint → Stable)
@@ -28,6 +32,7 @@ export default function App() {
           <Route path="/" element={<Users />} />
           <Route path="/accounts/:userId" element={<Account />} />
           <Route path="/policies" element={<Policies />} />
+          <Route path="/exceptions" element={<Exceptions />} />
           <Route path="/conversions" element={<Conversions />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
         </Routes>

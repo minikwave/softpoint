@@ -115,3 +115,23 @@ model PaypointEarnLocation {
   @@index([isActive, sortOrder])
   @@map("paypoint_earn_locations")
 }
+
+/// 운영 예외·HOLD 검토 큐 (B1-3)
+model PaypointException {
+  id             String    @id @default(uuid()) @db.Uuid
+  referenceType  String    @map("reference_type") @db.Text
+  referenceId    String    @map("reference_id") @db.Text
+  userId         String?   @map("user_id") @db.Text
+  title          String    @db.Text
+  detail         Json?     @db.JsonB
+  status         String    @default("OPEN") @db.Text
+  resolutionNote String?   @map("resolution_note") @db.Text
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy     String?   @map("resolved_by") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@index([userId, status])
+  @@map("paypoint_exceptions")
+}

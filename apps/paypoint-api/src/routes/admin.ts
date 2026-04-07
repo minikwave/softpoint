@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { Prisma } from '@prisma/client';
-import type { PaypointPolicy } from '@prisma/client';
+import type { PaypointException, PaypointPolicy } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getRequiredAdminApiKey, extractAdminApiKey } from '../lib/adminAuth.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
@@ -20,11 +20,17 @@ import {
   activatePolicy,
   listPolicies,
 } from '../services/policyWorkflow.js';
+import {
+  enqueueException,
+  listExceptions,
+  resolveException,
+} from '../services/exceptionsQueue.js';
 
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
   if (msg === 'INSUFFICIENT_BALANCE') return { statusCode: 402, code: msg, message: msg };
-  if (msg === 'CONVERSION_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
+  if (msg === 'CONVERSION_NOT_FOUND' || msg === 'EXCEPTION_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
+  if (msg === 'EXCEPTION_INVALID_STATUS') return { statusCode: 409, code: msg, message: msg };
   if (msg === 'INVALID_AMOUNT' || msg.startsWith('INVALID_') || msg === 'CONVERSION_INVALID_STATUS') return { statusCode: 400, code: msg, message: msg };
   return { statusCode: 500, code: 'INTERNAL_ERROR', message: 'Internal server error' };
 }
@@ -622,5 +628,114 @@ export async function adminRoutes(
       requestId: request.id,
     });
     return reply.send(policyDto(result.policy));
+  });
+
+  function exceptionDto(e: PaypointException) {
+    return {
+      id: e.id,
+      reference_type: e.referenceType,
+      reference_id: e.referenceId,
+      user_id: e.userId ?? undefined,
+      title: e.title,
+      detail: e.detail ?? undefined,
+      status: e.status,
+      resolution_note: e.resolutionNote ?? undefined,
+      resolved_at: e.resolvedAt?.toISOString() ?? null,
+      resolved_by: e.resolvedBy ?? undefined,
+      created_at: e.createdAt.toISOString(),
+      updated_at: e.updatedAt.toISOString(),
+    };
+  }
+
+  // GET /v1/admin/exceptions — 예외 큐 (OPEN·HOLD 검토용)
+  fastify.get<{
+    Querystring: { status?: string; user_id?: string; limit?: string };
+  }>('/exceptions', async (request, reply) => {
+    const { status, user_id, limit = '50' } = request.query;
+    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
+    const rows = await listExceptions({ status, userId: user_id, limit: take });
+    return reply.send({ items: rows.map(exceptionDto), count: rows.length });
+  });
+
+  // POST /v1/admin/exceptions — 큐에 등록
+  fastify.post<{
+    Body: {
+      reference_type: string;
+      reference_id: string;
+      title: string;
+      user_id?: string;
+      detail?: object;
+      actor_id?: string;
+      actor_role?: string;
+    };
+  }>('/exceptions', async (request, reply) => {
+    const body = request.body;
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    try {
+      const created = await enqueueException({
+        referenceType: body.reference_type,
+        referenceId: body.reference_id,
+        title: body.title,
+        userId: body.user_id,
+        detail: body.detail,
+      });
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'EXCEPTION_ENQUEUE',
+        targetType: 'exception',
+        targetId: created.id,
+        after: exceptionDto(created),
+        requestId: request.id,
+      });
+      return reply.status(201).send(exceptionDto(created));
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
+  });
+
+  // POST /v1/admin/exceptions/:id/resolve — 처리 완료 또는 기각
+  fastify.post<{
+    Params: { id: string };
+    Body?: {
+      disposition?: 'RESOLVED' | 'DISMISSED';
+      resolution_note?: string;
+      actor_id?: string;
+      actor_role?: string;
+    };
+  }>('/exceptions/:id/resolve', async (request, reply) => {
+    const body = request.body ?? {};
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    const disposition = body.disposition ?? 'RESOLVED';
+    if (disposition !== 'RESOLVED' && disposition !== 'DISMISSED') {
+      return reply.status(400).send({
+        error: { code: 'INVALID_DISPOSITION', message: 'disposition must be RESOLVED or DISMISSED' },
+      });
+    }
+    const before = await prisma.paypointException.findUnique({ where: { id: request.params.id } });
+    try {
+      const updated = await resolveException(request.params.id, {
+        disposition,
+        resolutionNote: body.resolution_note,
+        resolvedBy: actorId,
+      });
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'EXCEPTION_RESOLVE',
+        targetType: 'exception',
+        targetId: updated.id,
+        before: before ? exceptionDto(before) : undefined,
+        after: exceptionDto(updated),
+        requestId: request.id,
+      });
+      return reply.send(exceptionDto(updated));
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
   });
 }

@@ -106,6 +106,26 @@ export interface AdminPoliciesRes {
   count: number;
 }
 
+export interface ExceptionItem {
+  id: string;
+  reference_type: string;
+  reference_id: string;
+  user_id?: string;
+  title: string;
+  detail?: unknown;
+  status: string;
+  resolution_note?: string;
+  resolved_at: string | null;
+  resolved_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminExceptionsRes {
+  items: ExceptionItem[];
+  count: number;
+}
+
 export const adminApi = {
   getUsers(params?: { user_id?: string; status?: string; limit?: string }) {
     const q = new URLSearchParams();
@@ -214,6 +234,47 @@ export const adminApi = {
         policy_id: body.policy_id,
         version: body.version,
         effective_from: body.effective_from,
+        actor_id: 'console',
+        actor_role: 'Ops Admin',
+      }),
+    });
+  },
+
+  getExceptions(params?: { status?: string; user_id?: string; limit?: string }) {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    if (params?.limit) q.set('limit', params.limit);
+    const query = q.toString();
+    return request<AdminExceptionsRes>(`/v1/admin/exceptions${query ? `?${query}` : ''}`);
+  },
+
+  enqueueException(body: {
+    reference_type: string;
+    reference_id: string;
+    title: string;
+    user_id?: string;
+    detail?: object;
+  }) {
+    return request<ExceptionItem>('/v1/admin/exceptions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...body,
+        actor_id: 'console',
+        actor_role: 'Ops Admin',
+      }),
+    });
+  },
+
+  resolveException(
+    id: string,
+    body?: { disposition?: 'RESOLVED' | 'DISMISSED'; resolution_note?: string }
+  ) {
+    return request<ExceptionItem>(`/v1/admin/exceptions/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        disposition: body?.disposition ?? 'RESOLVED',
+        resolution_note: body?.resolution_note,
         actor_id: 'console',
         actor_role: 'Ops Admin',
       }),
