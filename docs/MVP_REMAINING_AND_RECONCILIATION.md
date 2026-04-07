@@ -23,7 +23,7 @@
 |----|------|-----------|
 | — | 프로덕션에서 `USER_JWT_SECRET`·`ADMIN_API_KEY` 필수화 | 운영 규칙(코드 변경은 환경 배치) |
 | P0-* | 문서에 나온 P0 항목들 | 대부분 **완료**로 §10.1에 기재됨 |
-| — | **관측성**: 구조화 로그, 요청 ID, 기본 메트릭(레이턴시·4xx/5xx) | **미포함** — 아래 §4 참고 |
+| — | **관측성**: 구조화 로그, 요청 ID | **부분** — `ENABLE_PROMETHEUS_METRICS` 시 `GET /metrics`(Prometheus)·`paypoint_http_*`·`paypoint_node_*` 기본 메트릭; 로그/트레이스·대사 메트릭은 없음 |
 
 ---
 
@@ -37,7 +37,8 @@
 - **온체인** 실제 토큰/스테이블 잔고를 조회해 **오프체인 기록(PayPoint 합계·전환 예약 등)** 과 맞추는 **리컨실리에이션(reconciliation) 워커·알림이 없음**. 전환은 `tx_hash`·`settlement_ref` 필드만 있고, 체인 RPC 연동 코드 없음.
 - **PCI(카드 결제)** 로 들어온 자금·정산 잔고와 **발행된 PayPoint(충전분)** 를 맞추는 **PG 웹훅 대사·미수·충당 모델** 없음. `PG-3`는 로드맵(§10.5)만 존재.
 - **`apps/paypoint-worker`** 디렉터리 **미존재**. 배치·리포트·주기적 대사는 구조상 권장만 되어 있음.
-- **Prometheus / Grafana / OpenTelemetry** 등 메트릭·트레이싱 의존성 및 `/metrics` 엔드포인트 **없음**. `GET /health` 는 정적 OK 응답 수준.
+- **Prometheus**: `ENABLE_PROMETHEUS_METRICS=true` 일 때만 `GET /metrics` 노출(의도적으로 기본 비활성). **Grafana 대시보드·알림·은행·체인·PG 대사용 메트릭** 은 여전히 없음.
+- **OpenTelemetry** 등 분산 트레이싱 **없음**. `GET /health` 는 정적 OK 응답 수준.
 
 ### 3.2 엔진 DB가 갖는 것(참고)
 

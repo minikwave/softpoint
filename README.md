@@ -35,6 +35,7 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 ### 운영·보안 (선택)
 
 - **`GET /health`** — API 생존 확인 (인증 없음).
+- **`ENABLE_PROMETHEUS_METRICS`** — `true`/`1`/`yes`이면 **`GET /metrics`**(Prometheus 텍스트)·프로세스 기본 메트릭·`paypoint_http_requests_total` / `paypoint_http_request_duration_seconds` 수집. **기본 비활성**; 프로덕션에서는 네트워크 ACL·인증으로 보호할 것.
 - **`ADMIN_API_KEY`** — 루트 `.env`에 설정 시 모든 `/v1/admin/*` 요청에 `x-admin-api-key: <값>` 또는 `Authorization: Bearer <값>` 필요. 비우면 로컬 개발처럼 Admin이 열려 있음.
 - **`USER_JWT_SECRET`** — 설정 시 모든 `/v1/paypoint/*`에 `Authorization: Bearer <JWT>` 필수. JWT는 **HS256**, 클레임 **`sub` = user_id**(요청의 path/query/body `user_id`와 일치해야 함). 비우면 기존처럼 공개 데모 API. 웹앱은 `apps/saum-webapp/.env.development.local` 등에 `VITE_USER_JWT=<토큰>` 또는 브라우저 `localStorage.paypoint_jwt`로 동일 토큰을 넣을 수 있음(개발용).
 - **오퍼레이터 콘솔**: `pnpm dev:console` 시 Vite 프록시가 루트 `.env`의 `ADMIN_API_KEY`를 자동으로 붙입니다(API와 동일 값). 브라우저에 키를 넣지 않습니다.

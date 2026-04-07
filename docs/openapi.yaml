@@ -23,6 +23,20 @@ tags:
     description: 운영자 (`/v1/admin`)
 
 paths:
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus 메트릭 (선택)
+      description: |
+        **`ENABLE_PROMETHEUS_METRICS`** 환경 변수가 `true`/`1`/`yes`일 때만 라우트가 등록됩니다. 미설정 시 **404**에 가깝게 동작(라우트 없음).
+      responses:
+        '200':
+          description: text/plain Prometheus exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /health:
     get:
       tags: [Health]
