@@ -15,7 +15,7 @@
 | 구분 | 가칭 | 비고 |
 |------|------|------|
 | **앱 브랜드(한글)** | **쌓음** | 랜딩·디앱 네비 (`Landing.tsx`, `App.tsx`) |
-| **앱·레포 슬러그** | **saum** | `paypoint-saum`, `saum-webapp`, `saum — PayPoint` |
+| **앱·레포 슬러그** | **saum** | `paypoint-saum`, `saum-webapp`; 브라우저 탭 등 사용자 노출은 **쌓음 — PayPoint** |
 | **엔진·레이어** | **PayPoint** | SSOT API·Prisma·도메인 패키지 |
 | **「모음」** | 비공식 비유만 | “한 앱에 **모아** 쓴다”는 **경험 설명**에 한함. 제품명 대용 금지 |
 
