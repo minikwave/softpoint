@@ -1,0 +1,11 @@
+# Railway: 서비스 루트를 이 레포 루트로 두고 Docker 빌드 사용.
+# 대시보드에서 DATABASE_URL 등을 설정 (Supabase Postgres URI 권장).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"

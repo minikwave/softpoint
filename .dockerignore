@@ -1,0 +1,11 @@
+.git
+**/.env
+**/.env.*
+**/dist
+**/node_modules
+apps/saum-webapp
+apps/operator-console
+supabase/.branches
+supabase/.temp
+*.md
+!README.md
