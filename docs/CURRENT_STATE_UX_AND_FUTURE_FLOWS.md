@@ -1,0 +1,180 @@
+# 현재 구조·기능·UX·사용성 정리 & 추후 유저 플로우
+
+PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵 ID는 [PROJECT_ANALYSIS_AND_PLAN.md §10](../PROJECT_ANALYSIS_AND_PLAN.md)를 본다.
+
+---
+
+## 1. 레포·런타임 구조
+
+| 영역 | 경로 | 역할 |
+|------|------|------|
+| **Engine API** | `apps/paypoint-api` | Fastify, Prisma(PostgreSQL), `/v1/paypoint/*`(사용자)·`/v1/admin/*`(운영), `GET /health` |
+| **사용자 웹** | `apps/saum-webapp` | Vite+React, 랜딩 `/` + 디앱 `/app/*` |
+| **운영 콘솔** | `apps/operator-console` | Vite+React, Admin API 전용 UI |
+| **도메인 로직** | `packages/paypoint-domain` | 잔액 불변식, 결제 시 적립 **퍼센트 계산**(`paymentEarn`) 등 순수 TS |
+
+**연동**: 웹앱·콘솔은 프로덕션에서 API URL을 바꿔 동일 REST만 호출한다. 별도 BFF 없음.
+
+---
+
+## 2. 완료된 백엔드 기능 (요약)
+
+### 2.1 사용자 API (`/v1/paypoint/*`)
+
+| 기능 | 메서드·경로 | 비고 |
+|------|-------------|------|
+| 잔액 | `GET /balance/:user_id` | JWT 시 `sub` = `user_id` 일치 |
+| 거래 목록 | `GET /transactions` | `type`, `source`(metadata.source 전체 일치), 커서 |
+| 적립 장소 | `GET /earn-locations` | `category` 선택; DB 마스터 |
+| 적립 | `POST /issue` | 멱등 키 선택, `source`/`external_ref`/`campaign_id` 메타 |
+| 결제(차감) | `POST /spend` | `spend:{user_id}:{order_id}` 멱등; **ACTIVE `PAYMENT_EARN_POLICY` 있으면 동일 TX 내 캐시백 ISSUE** |
+| 전환 요청 | `POST /conversion/request` | `client_request_id`/`idempotency_key` 멱등 |
+| 전환 조회 | `GET /conversion/:id`, `GET /conversions` | JWT 사용자 일치 |
+
+### 2.2 운영 API (`/v1/admin/*`, 선택 `ADMIN_API_KEY`)
+
+| 기능 | 비고 |
+|------|------|
+| 사용자·계정 검색·상세·타임라인 | |
+| 수동 적립 | 감사 `before`/`after` |
+| 전환 승인·정산·실패 | `FOR UPDATE` + 감사 |
+| 감사 로그 목록 | 필터·커서 |
+| 정책 | draft→submit→approve→activate, `GET /policies` |
+| 예외 큐 | 등록·`resolve`(RESOLVED/DISMISSED)·감사 |
+
+### 2.3 DB 엔티티(대표)
+
+계정·거래·전환·감사·멱등·정책(버전+상태)·적립 장소·예외 큐.
+
+---
+
+## 3. 완료된 프론트 기능
+
+### 3.1 saum-webapp (사용자)
+
+| 경로 | 내용 |
+|------|------|
+| `/` | 랜딩: 디앱/가게 진입, 마케팅 톤(디앱 전역 네비 없음) |
+| `/app/balance` | 사용자 ID 입력 → 잔액·가용 |
+| `/app/wallet` | **표시용** 데모 지갑 주소·선호 체인(localStorage), 실서명 없음 |
+| `/app/transactions` | 전체 내역 + **출처 필터**(적용/초기화, API `source`) |
+| `/app/earn-history` | ISSUE만 API 필터 + 출처 필터 |
+| `/app/earn-map` | API 장소 목록·카테고리 필터·외부 지도 링크 |
+| `/app/vouchers` | 목업 카탈로그 → **Spend**로 구매 데모 |
+| `/app/spend` | PP 차감; 정책 있으면 **결제 적립** 메시지 |
+| `/app/conversion` | 정산 옵션 전환 요청(UUID `client_request_id`) |
+| `/app/store` | 가맹 관점 정산·전환 목록(데모+API) |
+
+**인증 UX**: `USER_JWT_SECRET` 미설정 시 **데모 모드**(입력한 `user_id` 그대로 API). 설정 시 `VITE_USER_JWT` 또는 `localStorage.paypoint_jwt` 필요 — 운영 전환 시 사용자 온보딩·토큰 발급 경로를 제품에 붙여야 한다.
+
+### 3.2 operator-console (운영)
+
+| 메뉴 | 내용 |
+|------|------|
+| 사용자 검색 | 계정 목록 → 계정 상세 |
+| 계정 상세 | 수동 발급(`source`/`external_ref`/`campaign_id`), 타임라인 출처 |
+| 정책 | 목록·초안 JSON·제출·승인·활성화 |
+| 예외 | 큐 등록·처리/기각 |
+| 전환 | 목록·승인·정산·실패 |
+| 감사 로그 | 조회 |
+
+**사용성**: 로컬에서 Vite가 `ADMIN_API_KEY`를 프록시에 붙여 **브라우저에 키를 입력하지 않음**.
+
+---
+
+## 4. UX/UI·사용성 정리
+
+### 4.1 정보 구조(IA)
+
+- **랜딩 vs 디앱 분리**: 신규 방문자(랜딩)와 실사용자(디앱) 혼선을 줄임.
+- **디앱**: “잔액 → 내역/적립 → 쓰기(결제·상품권) → 정산(전환)·가게” 순으로 한 줄 스토리에 맞춘 가로 네비.
+- **콘솔**: 정책·예외·전환·감사를 태스크 단위로 분리.
+
+### 4.2 UI 패턴
+
+- 카드·테이블·배지(거래 유형)·에러/성공 메시지 영역 공통화.
+- **데모 pill**: 목업·표시 전용(지갑, 일부 카피)을 시각적으로 구분.
+- **필터**: 출처·적립 장소 카테고리·예외 상태 등 **적용/초기화** 또는 Enter로 확정해 불필요한 재요청 감소.
+- 금액은 `toLocaleString('ko-KR')` 등 **가독성** 위주(고액 콤마).
+
+### 4.3 사용성 한계(현재 의도된 MVP)
+
+- **단일 `user_id` 텍스트 입력**: 실제 로그인·회원가입·다계정 전환 UI 없음.
+- **지갑**: 연결·체인은 **프로토타입**; 온체인 잔액·서명 없음.
+- **상품권·마켓**: 카탈로그 고정 목업; 재고·멀티 머천트·검색 없음.
+- **접근성**: 기본 HTML 시맨틱·`aria-label`(일부 네비) 수준; 키보드 전 구간 최적화·스크린리더 가이드는 미완.
+- **i18n**: 한국어 UI 고정.
+
+### 4.4 신뢰·운영
+
+- 쓰기 **멱등** 표준화(README 표).
+- Spend/전환 **행 락**으로 이중 차감 방지([POSTGRES_TRANSACTION_OPS.md](./POSTGRES_TRANSACTION_OPS.md)).
+- Admin 주요 쓰기 **감사 로그**.
+
+---
+
+## 5. 데이터·로컬 시드
+
+- `pnpm db:push` — 스키마 반영.
+- `pnpm db:seed` — 적립 장소 4곳; **활성 `PAYMENT_EARN_POLICY`가 없을 때만** 시드 정책 1건 생성.
+
+---
+
+## 6. 추후 유저 플로우(제품 방향)
+
+아래는 **현재 코드가 없거나 스텁인 부분**을 포함한, 확장 시나리오다. 실제 릴리스마다 범위를 쪼개 적용하면 된다.
+
+### 6.1 일반 사용자(소비자)
+
+| 단계 | 현재 | 추후 |
+|------|------|------|
+| 진입 | 랜딩 → 디앱 | 앱스토어·딥링크·푸시 |
+| 신원 | `user_id` 입력·JWT(선택) | 본인 인증·소셜/패스키·세션 |
+| 적립 확인 | 적립 내역·출처 필터 | 푸시·배너·“이번 달 적립” 요약 |
+| 사용 | 결제(Spend)·상품권 | 실가맹 PG·QR·오프라인 |
+| 캐시백 | 정책 연동됨(퍼센트) | 티어·가맹별·한도·리스크 |
+| 정산 | 전환 요청 → 운영 처리 | Quote·라우터·자동 상태·수수료 표시 |
+
+### 6.2 가맹점(머천트)
+
+| 단계 | 현재 | 추후 |
+|------|------|------|
+| 가게 화면 | 정산 요청·전환 조회 데모 | 가맹 온보딩·KYC·정산 계좌 |
+| 정산 | 전환 파이프라인(MVP) | 대사·세금계산서·분쟁 |
+
+### 6.3 운영·컴플라이언스
+
+| 단계 | 현재 | 추후 |
+|------|------|------|
+| 수동 적립·전환 | 콘솔 | RBAC·2인 승인·역할별 메뉴 |
+| 정책 | 워크플로+Spend 연동(퍼센트) | 구간 정책·A/B·드라이런 |
+| 예외 | 수동 큐 | 엔진 자동 적재·SLA·에스컬레이션 |
+| 감사 | 조회 |보내기·보관 정책 |
+
+### 6.4 머지(통합 포인트)·모음(쌓음) 스토리
+
+- **머지**: 제휴·체인·캠페인이 각각 `issue`(또는 정책)로 유입 → **하나의 잔액**으로 표시. 어댑터는 **별도 서비스**로 두는 전제.
+- **모음**: 디앱 한 앱 안에서 적립·내역·지도·결제·정산·가게를 묶어 **“모으고 쓰고 정산”** 데모. **소스별 탭**(월렛A·제휴B)은 없음 → 향후 제품화 시 선택.
+
+### 6.5 마켓플레이스·상품권
+
+- **현재**: 목업 + Spend로 차감만 실연동.
+- **추후**: 카탈로그 API·재고·머천트 정산·주문 멱등·바우처 엔티티(MP-* 로드맵).
+
+### 6.6 모바일·워커
+
+- **현재**: 반응형 웹 수준.
+- **추후**: WebView 셸·푸시·만료 배치·리포트(`paypoint-worker`, W1-* ).
+
+---
+
+## 7. 관련 문서
+
+- [README.md](../README.md) — 설치·환경·멱등·랜딩/디앱 요약  
+- [PROJECT_ANALYSIS_AND_PLAN.md](../PROJECT_ANALYSIS_AND_PLAN.md) — §5 로드맵, §10 백로그 ID  
+- [PAYPOINT_EARN_POLICY_AND_FLOW.md](./PAYPOINT_EARN_POLICY_AND_FLOW.md) — 적립 정책 개념  
+- [POSTGRES_TRANSACTION_OPS.md](./POSTGRES_TRANSACTION_OPS.md) — DB 락·격리 운영 메모  
+
+---
+
+*이 문서는 제품 데모·온보딩·투자/파트너 설명용으로 활용하고, 버전이 바뀌면 함께 갱신하는 것을 권장한다.*
