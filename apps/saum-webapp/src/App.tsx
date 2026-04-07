@@ -8,6 +8,7 @@ import Store from './pages/Store';
 import VoucherStore from './pages/VoucherStore';
 import EarnHistory from './pages/EarnHistory';
 import EarnMap from './pages/EarnMap';
+import Wallet from './pages/Wallet';
 import './App.css';
 
 function AppNav() {
@@ -29,6 +30,7 @@ function AppNav() {
       </div>
       <div className="nav-links">
         {link({ to: '/app/balance', children: '잔액' })}
+        {link({ to: '/app/wallet', children: '지갑' })}
         {link({ to: '/app/transactions', children: '내역' })}
         {link({ to: '/app/earn-history', children: '적립 내역' })}
         {link({ to: '/app/earn-map', children: '적립 장소' })}
@@ -59,6 +61,7 @@ export default function App() {
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Navigate to="/app/balance" replace />} />
         <Route path="balance" element={<Balance />} />
+        <Route path="wallet" element={<Wallet />} />
         <Route path="transactions" element={<Transactions />} />
         <Route path="earn-history" element={<EarnHistory />} />
         <Route path="earn-map" element={<EarnMap />} />

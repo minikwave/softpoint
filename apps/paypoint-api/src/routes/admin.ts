@@ -186,6 +186,16 @@ export async function adminRoutes(
       }
     }
 
+    const accountBefore = await getAccountByUserId(body.user_id);
+    const beforeAudit = accountBefore
+      ? {
+          account_id: accountBefore.id,
+          balance: decimalToBigint(accountBefore.balance).toString(),
+          reserved_balance: decimalToBigint(accountBefore.reservedBalance).toString(),
+          status: accountBefore.status,
+        }
+      : { account_existed: false };
+
     try {
       const result = await issueCredit({
         userId: body.user_id,
@@ -207,6 +217,7 @@ export async function adminRoutes(
         action: 'CREDITS_ISSUE',
         targetType: 'account',
         targetId: result.accountId,
+        before: beforeAudit,
         after: {
           user_id: result.userId,
           amount: result.amount,
