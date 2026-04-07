@@ -1,0 +1,877 @@
+openapi: 3.0.3
+info:
+  title: PayPoint Engine API
+  description: |
+    **쌓음(saum)** 사용자 앱·운영 콘솔이 호출하는 REST API 스켈레톤 명세입니다.
+    실제 동작은 `apps/paypoint-api` 소스가 기준이며, 필드명은 엔드포인트마다 **snake_case**와 **camelCase**가 혼용될 수 있습니다(구현 그대로 반영).
+
+    - `USER_JWT_SECRET`이 설정되면 `/v1/paypoint/*`에 `Authorization: Bearer <JWT>` 필요. 클레임 `sub`는 요청의 `user_id`와 일치해야 합니다.
+    - **`USER_JWT_SECRET`이 비어 있으면** 사용자 API는 **인증 없이** 호출되는 데모 모드입니다(스펙의 `UserBearer`는 운영 전제용).
+    - `ADMIN_API_KEY`가 설정되면 `/v1/admin/*`에 `x-admin-api-key` 또는 `Authorization: Bearer <key>` 필요.
+    - **`ADMIN_API_KEY` 미설정 시** Admin 경로는 로컬용으로 **키 없이** 열려 있을 수 있습니다.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:3000
+    description: 로컬 기본 (`API_PORT`로 변경 가능)
+
+tags:
+  - name: Health
+  - name: PayPoint
+    description: 사용자·연동 클라이언트 (`/v1/paypoint`)
+  - name: Admin
+    description: 운영자 (`/v1/admin`)
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: 생존 확인
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: paypoint-api
+
+  /v1/paypoint/earn-locations:
+    get:
+      tags: [PayPoint]
+      summary: 적립 장소 목록
+      security:
+        - UserBearer: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 카테고리 전체 일치 필터
+      responses:
+        '200':
+          description: 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EarnLocationsResponse'
+
+  /v1/paypoint/balance/{user_id}:
+    get:
+      tags: [PayPoint]
+      summary: 잔액 조회
+      security:
+        - UserBearer: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '403':
+          description: JWT sub 불일치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/paypoint/transactions:
+    get:
+      tags: [PayPoint]
+      summary: 거래 목록 (커서 페이지)
+      security:
+        - UserBearer: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [ISSUE, SPEND, EXPIRE, ADJUST]
+        - name: source
+          in: query
+          description: metadata.source 전체 문자열 일치
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResponse'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/paypoint/issue:
+    post:
+      tags: [PayPoint]
+      summary: 적립 (멱등 키 선택)
+      security:
+        - UserBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueBody'
+      responses:
+        '200':
+          description: 멱등 재요청 시 동일 본문
+        '201':
+          description: 생성됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueResult'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/paypoint/spend:
+    post:
+      tags: [PayPoint]
+      summary: 결제(차감). 멱등 키 없으면 `spend:{user_id}:{order_id}`
+      security:
+        - UserBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, amount, order_id]
+              properties:
+                user_id:
+                  type: string
+                amount:
+                  type: string
+                  description: 정수 문자열 (wei 스타일 BigInt)
+                order_id:
+                  type: string
+                idempotency_key:
+                  type: string
+      responses:
+        '200':
+          description: 성공 또는 멱등 재요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpendResult'
+        '402':
+          description: 잔액 부족
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/paypoint/conversion/request:
+    post:
+      tags: [PayPoint]
+      summary: 전환 요청 (PayPoint → 스테이블 등)
+      security:
+        - UserBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, type, from_amount, to_asset]
+              properties:
+                user_id:
+                  type: string
+                type:
+                  type: string
+                  enum: [USER_CASHOUT, MERCHANT_SETTLEMENT, TREASURY]
+                from_amount:
+                  type: string
+                to_asset:
+                  type: string
+                to_chain_id:
+                  type: integer
+                idempotency_key:
+                  type: string
+                client_request_id:
+                  type: string
+                  description: 있으면 내부 키 `conversion:{user_id}:{id}`
+      responses:
+        '200':
+          description: 멱등 재요청
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionRecord'
+
+  /v1/paypoint/conversion/{id}:
+    get:
+      tags: [PayPoint]
+      summary: 전환 단건
+      security:
+        - UserBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionRecord'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/paypoint/conversions:
+    get:
+      tags: [PayPoint]
+      summary: 사용자 전환 목록
+      security:
+        - UserBearer: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversionRecord'
+
+  /v1/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: 감사 로그
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: actor_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: target_type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/users:
+    get:
+      tags: [Admin]
+      summary: 계정 검색·목록
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: user_id
+          in: query
+          description: 부분 일치(대소문자 무시)
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/accounts/{userId}:
+    get:
+      tags: [Admin]
+      summary: 계정 상세 + 타임라인
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /v1/admin/credits/issue:
+    post:
+      tags: [Admin]
+      summary: 수동 적립
+      security:
+        - AdminApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/IssueBody'
+                - type: object
+                  properties:
+                    actor_id:
+                      type: string
+                    actor_role:
+                      type: string
+      responses:
+        '200':
+          description: 멱등 재요청
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueResult'
+
+  /v1/admin/conversions:
+    get:
+      tags: [Admin]
+      summary: 전환 목록 (상태·유저 필터)
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/conversions/{id}/approve:
+    post:
+      tags: [Admin]
+      summary: 전환 승인 (잔액 예약)
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionRecord'
+
+  /v1/admin/conversions/{id}/settle:
+    post:
+      tags: [Admin]
+      summary: 전환 정산
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tx_hash:
+                  type: string
+                settlement_ref:
+                  type: string
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionRecord'
+
+  /v1/admin/conversions/{id}/fail:
+    post:
+      tags: [Admin]
+      summary: 전환 실패 (예약 해제)
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversionRecord'
+
+  /v1/admin/policies:
+    get:
+      tags: [Admin]
+      summary: 정책 개정 목록
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: policy_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/policies/draft:
+    post:
+      tags: [Admin]
+      summary: 정책 초안 생성
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [policy_id, version, policy_json]
+              properties:
+                policy_id:
+                  type: string
+                version:
+                  type: string
+                policy_json:
+                  type: object
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '201':
+          description: OK
+
+  /v1/admin/policies/submit:
+    post:
+      tags: [Admin]
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyIdVersionBody'
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/policies/approve:
+    post:
+      tags: [Admin]
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyIdVersionBody'
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/policies/activate:
+    post:
+      tags: [Admin]
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PolicyIdVersionBody'
+                - type: object
+                  properties:
+                    effective_from:
+                      type: string
+                      format: date-time
+      responses:
+        '200':
+          description: OK
+
+  /v1/admin/exceptions:
+    get:
+      tags: [Admin]
+      summary: 예외 큐 목록
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+    post:
+      tags: [Admin]
+      summary: 예외 등록
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference_type, reference_id, title]
+              properties:
+                reference_type:
+                  type: string
+                reference_id:
+                  type: string
+                title:
+                  type: string
+                user_id:
+                  type: string
+                detail:
+                  type: object
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '201':
+          description: OK
+
+  /v1/admin/exceptions/{id}/resolve:
+    post:
+      tags: [Admin]
+      summary: 예외 처리·기각
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                disposition:
+                  type: string
+                  enum: [RESOLVED, DISMISSED]
+                  default: RESOLVED
+                resolution_note:
+                  type: string
+                actor_id:
+                  type: string
+                actor_role:
+                  type: string
+      responses:
+        '200':
+          description: OK
+
+components:
+  securitySchemes:
+    UserBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256, `sub` = user_id (환경 변수 `USER_JWT_SECRET` 설정 시 필수)
+    AdminApiKey:
+      type: apiKey
+      in: header
+      name: x-admin-api-key
+      description: |
+        `ADMIN_API_KEY` 설정 시 필수. 대안으로 `Authorization: Bearer <동일 키>` 도 허용됩니다.
+
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    BalanceResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+        balance:
+          type: string
+        reserved_balance:
+          type: string
+        available:
+          type: string
+
+    EarnLocationsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              category:
+                type: string
+              address:
+                type: string
+              lat:
+                type: number
+              lng:
+                type: number
+              earn_rate:
+                type: string
+
+    TransactionsResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+        next_cursor:
+          type: string
+          nullable: true
+
+    IssueBody:
+      type: object
+      required: [user_id, amount, reason]
+      properties:
+        user_id:
+          type: string
+        amount:
+          type: string
+        reason:
+          type: string
+        expires_at:
+          type: string
+        idempotency_key:
+          type: string
+        source:
+          type: string
+        external_ref:
+          type: string
+        campaign_id:
+          type: string
+
+    IssueResult:
+      type: object
+      description: issue / admin credits/issue 응답 (camelCase)
+      properties:
+        accountId:
+          type: string
+        userId:
+          type: string
+        amount:
+          type: string
+        txId:
+          type: string
+
+    SpendResult:
+      type: object
+      properties:
+        txId:
+          type: string
+        receiptId:
+          type: string
+        userId:
+          type: string
+        amount:
+          type: string
+        orderId:
+          type: string
+        paymentEarn:
+          type: object
+          nullable: true
+          properties:
+            amount:
+              type: string
+            txId:
+              type: string
+            policyId:
+              type: string
+            policyVersion:
+              type: string
+
+    ConversionRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+        fromAmount:
+          type: string
+        fromUnit:
+          type: string
+        toAsset:
+          type: string
+        status:
+          type: string
+        txHash:
+          type: string
+        settlementRef:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PolicyIdVersionBody:
+      type: object
+      required: [policy_id, version]
+      properties:
+        policy_id:
+          type: string
+        version:
+          type: string
+        actor_id:
+          type: string
+        actor_role:
+          type: string
