@@ -91,6 +91,21 @@ export interface AdminAuditLogsRes {
   next_cursor: string | null;
 }
 
+export interface PolicyItem {
+  policy_id: string;
+  version: string;
+  policy_json: unknown;
+  effective_from: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPoliciesRes {
+  items: PolicyItem[];
+  count: number;
+}
+
 export const adminApi = {
   getUsers(params?: { user_id?: string; status?: string; limit?: string }) {
     const q = new URLSearchParams();
@@ -144,6 +159,65 @@ export const adminApi = {
 
   failConversion(id: string) {
     return request<ConversionItem>(`/v1/admin/conversions/${id}/fail`, { method: 'POST' });
+  },
+
+  getPolicies(params?: { policy_id?: string; status?: string; limit?: string }) {
+    const q = new URLSearchParams();
+    if (params?.policy_id) q.set('policy_id', params.policy_id);
+    if (params?.status) q.set('status', params.status);
+    if (params?.limit) q.set('limit', params.limit);
+    const query = q.toString();
+    return request<AdminPoliciesRes>(`/v1/admin/policies${query ? `?${query}` : ''}`);
+  },
+
+  createPolicyDraft(body: {
+    policy_id: string;
+    version: string;
+    policy_json: object;
+    actor_id?: string;
+    actor_role?: string;
+  }) {
+    return request<PolicyItem>('/v1/admin/policies/draft', {
+      method: 'POST',
+      body: JSON.stringify({ ...body, actor_id: body.actor_id ?? 'console', actor_role: body.actor_role ?? 'Ops Admin' }),
+    });
+  },
+
+  submitPolicy(body: { policy_id: string; version: string }) {
+    return request<PolicyItem>('/v1/admin/policies/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        policy_id: body.policy_id,
+        version: body.version,
+        actor_id: 'console',
+        actor_role: 'Ops Admin',
+      }),
+    });
+  },
+
+  approvePolicy(body: { policy_id: string; version: string }) {
+    return request<PolicyItem>('/v1/admin/policies/approve', {
+      method: 'POST',
+      body: JSON.stringify({
+        policy_id: body.policy_id,
+        version: body.version,
+        actor_id: 'console',
+        actor_role: 'Ops Admin',
+      }),
+    });
+  },
+
+  activatePolicy(body: { policy_id: string; version: string; effective_from?: string }) {
+    return request<PolicyItem>('/v1/admin/policies/activate', {
+      method: 'POST',
+      body: JSON.stringify({
+        policy_id: body.policy_id,
+        version: body.version,
+        effective_from: body.effective_from,
+        actor_id: 'console',
+        actor_role: 'Ops Admin',
+      }),
+    });
   },
 
   getAuditLogs(params?: {

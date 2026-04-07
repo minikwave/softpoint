@@ -39,12 +39,17 @@ model PaypointTransaction {
 }
 
 model PaypointPolicy {
-  policyId      String   @map("policy_id") @db.Text
-  version       String   @db.Text
-  policyJson    Json     @map("policy_json") @db.JsonB
+  policyId      String    @map("policy_id") @db.Text
+  version       String    @db.Text
+  policyJson    Json      @map("policy_json") @db.JsonB
   effectiveFrom DateTime? @map("effective_from") @db.Timestamptz(6)
+  /// DRAFT → SUBMITTED → APPROVED → ACTIVE | SUPERSEDED
+  status        String    @default("DRAFT") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@id([policyId, version])
+  @@index([policyId, status])
   @@map("paypoint_policies")
 }
 

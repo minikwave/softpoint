@@ -3,6 +3,7 @@ import Users from './pages/Users';
 import Account from './pages/Account';
 import Conversions from './pages/Conversions';
 import AuditLogs from './pages/AuditLogs';
+import Policies from './pages/Policies';
 
 export default function App() {
   return (
@@ -11,6 +12,9 @@ export default function App() {
         <span className="brand">Operator Console</span>
         <NavLink to="/" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')} end>
           사용자 검색
+        </NavLink>
+        <NavLink to="/policies" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
+          정책
         </NavLink>
         <NavLink to="/conversions" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
           전환 (PayPoint → Stable)
@@ -23,6 +27,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Users />} />
           <Route path="/accounts/:userId" element={<Account />} />
+          <Route path="/policies" element={<Policies />} />
           <Route path="/conversions" element={<Conversions />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
         </Routes>

@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { Prisma } from '@prisma/client';
+import type { PaypointPolicy } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getRequiredAdminApiKey, extractAdminApiKey } from '../lib/adminAuth.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
@@ -11,6 +13,13 @@ import {
   settleConversion,
   failConversion,
 } from '../services/conversion.js';
+import {
+  createPolicyDraft,
+  submitPolicy,
+  approvePolicy,
+  activatePolicy,
+  listPolicies,
+} from '../services/policyWorkflow.js';
 
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
@@ -404,5 +413,214 @@ export async function adminRoutes(
       const e = toHttpError(err);
       return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
     }
+  });
+
+  function policyDto(p: PaypointPolicy) {
+    return {
+      policy_id: p.policyId,
+      version: p.version,
+      policy_json: p.policyJson,
+      effective_from: p.effectiveFrom?.toISOString() ?? null,
+      status: p.status,
+      created_at: p.createdAt.toISOString(),
+      updated_at: p.updatedAt.toISOString(),
+    };
+  }
+
+  // GET /v1/admin/policies — list revisions (newest updated first)
+  fastify.get<{
+    Querystring: { policy_id?: string; status?: string; limit?: string };
+  }>('/policies', async (request, reply) => {
+    const { policy_id, status, limit = '50' } = request.query;
+    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
+    const rows = await listPolicies({ policyId: policy_id, status, limit: take });
+    return reply.send({
+      items: rows.map(policyDto),
+      count: rows.length,
+    });
+  });
+
+  // POST /v1/admin/policies/draft — create DRAFT revision
+  fastify.post<{
+    Body: {
+      policy_id: string;
+      version: string;
+      policy_json: object;
+      actor_id?: string;
+      actor_role?: string;
+    };
+  }>('/policies/draft', async (request, reply) => {
+    const body = request.body;
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    if (body.policy_json === undefined || body.policy_json === null) {
+      return reply.status(400).send({
+        error: { code: 'INVALID_BODY', message: 'policy_json is required' },
+      });
+    }
+    try {
+      const created = await createPolicyDraft({
+        policyId: body.policy_id,
+        version: body.version,
+        policyJson: body.policy_json as object,
+      });
+      await writeAuditLog({
+        actorId,
+        actorRole,
+        action: 'POLICY_DRAFT',
+        targetType: 'policy',
+        targetId: `${created.policyId}:${created.version}`,
+        after: policyDto(created),
+        requestId: request.id,
+      });
+      return reply.status(201).send(policyDto(created));
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        return reply.status(409).send({
+          error: { code: 'POLICY_VERSION_EXISTS', message: 'policy_id and version already exist' },
+        });
+      }
+      if (err instanceof Error && err.message === 'INVALID_POLICY_KEY') {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'policy_id and version must be non-empty' },
+        });
+      }
+      throw err;
+    }
+  });
+
+  // POST /v1/admin/policies/submit — DRAFT → SUBMITTED
+  fastify.post<{
+    Body: { policy_id: string; version: string; actor_id?: string; actor_role?: string };
+  }>('/policies/submit', async (request, reply) => {
+    const body = request.body;
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    const before = await prisma.paypointPolicy.findUnique({
+      where: {
+        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
+      },
+    });
+    const result = await submitPolicy(body.policy_id, body.version);
+    if ('error' in result) {
+      const pe = result.error;
+      if (pe.code === 'NOT_FOUND') {
+        return reply.status(404).send({
+          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
+        });
+      }
+      return reply.status(409).send({
+        error: {
+          code: 'POLICY_INVALID_STATE',
+          message: `Cannot submit from status ${pe.current}`,
+        },
+      });
+    }
+    await writeAuditLog({
+      actorId,
+      actorRole,
+      action: 'POLICY_SUBMIT',
+      targetType: 'policy',
+      targetId: `${result.policy.policyId}:${result.policy.version}`,
+      before: before ? policyDto(before) : undefined,
+      after: policyDto(result.policy),
+      requestId: request.id,
+    });
+    return reply.send(policyDto(result.policy));
+  });
+
+  // POST /v1/admin/policies/approve — SUBMITTED → APPROVED
+  fastify.post<{
+    Body: { policy_id: string; version: string; actor_id?: string; actor_role?: string };
+  }>('/policies/approve', async (request, reply) => {
+    const body = request.body;
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    const before = await prisma.paypointPolicy.findUnique({
+      where: {
+        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
+      },
+    });
+    const result = await approvePolicy(body.policy_id, body.version);
+    if ('error' in result) {
+      const pe = result.error;
+      if (pe.code === 'NOT_FOUND') {
+        return reply.status(404).send({
+          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
+        });
+      }
+      return reply.status(409).send({
+        error: {
+          code: 'POLICY_INVALID_STATE',
+          message: `Cannot approve from status ${pe.current}`,
+        },
+      });
+    }
+    await writeAuditLog({
+      actorId,
+      actorRole,
+      action: 'POLICY_APPROVE',
+      targetType: 'policy',
+      targetId: `${result.policy.policyId}:${result.policy.version}`,
+      before: before ? policyDto(before) : undefined,
+      after: policyDto(result.policy),
+      requestId: request.id,
+    });
+    return reply.send(policyDto(result.policy));
+  });
+
+  // POST /v1/admin/policies/activate — APPROVED → ACTIVE (others ACTIVE → SUPERSEDED)
+  fastify.post<{
+    Body: {
+      policy_id: string;
+      version: string;
+      effective_from?: string;
+      actor_id?: string;
+      actor_role?: string;
+    };
+  }>('/policies/activate', async (request, reply) => {
+    const body = request.body;
+    const actorId = body.actor_id ?? 'system';
+    const actorRole = body.actor_role ?? 'Ops Admin';
+    const before = await prisma.paypointPolicy.findUnique({
+      where: {
+        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
+      },
+    });
+    let eff: Date | undefined;
+    if (body.effective_from?.trim()) {
+      eff = new Date(body.effective_from.trim());
+      if (Number.isNaN(eff.getTime())) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_EFFECTIVE_FROM', message: 'effective_from must be ISO-8601' },
+        });
+      }
+    }
+    const result = await activatePolicy(body.policy_id, body.version, eff);
+    if ('error' in result) {
+      const pe = result.error;
+      if (pe.code === 'NOT_FOUND') {
+        return reply.status(404).send({
+          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
+        });
+      }
+      return reply.status(409).send({
+        error: {
+          code: 'POLICY_INVALID_STATE',
+          message: `Cannot activate from status ${pe.current}`,
+        },
+      });
+    }
+    await writeAuditLog({
+      actorId,
+      actorRole,
+      action: 'POLICY_ACTIVATE',
+      targetType: 'policy',
+      targetId: `${result.policy.policyId}:${result.policy.version}`,
+      before: before ? policyDto(before) : undefined,
+      after: policyDto(result.policy),
+      requestId: request.id,
+    });
+    return reply.send(policyDto(result.policy));
   });
 }
