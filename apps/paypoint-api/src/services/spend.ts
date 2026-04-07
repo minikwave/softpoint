@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { canSpend } from '@paypoint/domain';
+import { canSpend, calculatePaymentEarnAmount, PAYMENT_EARN_POLICY_ID } from '@paypoint/domain';
 import { bigintToDecimal } from './account.js';
 
 export interface SpendParams {
@@ -15,6 +15,13 @@ export interface SpendResult {
   userId: string;
   amount: string;
   orderId: string;
+  /** 활성 PAYMENT_EARN_POLICY가 있고 적립액 > 0일 때만 */
+  paymentEarn?: {
+    amount: string;
+    txId: string;
+    policyId: string;
+    policyVersion: string;
+  };
 }
 
 /**
@@ -65,12 +72,52 @@ export async function spendCredit(params: SpendParams): Promise<SpendResult> {
       },
     });
 
+    const policyRow = await tx.paypointPolicy.findFirst({
+      where: { policyId: PAYMENT_EARN_POLICY_ID, status: 'ACTIVE' },
+      orderBy: [{ effectiveFrom: 'desc' }, { updatedAt: 'desc' }],
+    });
+
+    let paymentEarn: SpendResult['paymentEarn'];
+    if (policyRow) {
+      const earn = calculatePaymentEarnAmount(amount, policyRow.policyJson);
+      if (earn > 0n) {
+        const balAfterEarn = newBalance + earn;
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE paypoint_accounts
+          SET balance = ${balAfterEarn.toString()}::numeric(30,0), updated_at = now()
+          WHERE id = ${row.id}::uuid
+        `);
+        const earnRow = await tx.paypointTransaction.create({
+          data: {
+            accountId: row.id,
+            type: 'ISSUE',
+            amount: bigintToDecimal(earn),
+            orderId,
+            metadata: {
+              reason: 'payment_earn',
+              source: 'payment_earn',
+              policy_id: policyRow.policyId,
+              policy_version: policyRow.version,
+              spend_tx_id: txRecord.id,
+            } as object,
+          },
+        });
+        paymentEarn = {
+          amount: earn.toString(),
+          txId: earnRow.id,
+          policyId: policyRow.policyId,
+          policyVersion: policyRow.version,
+        };
+      }
+    }
+
     return {
       txId: txRecord.id,
       receiptId,
       userId,
       amount: amount.toString(),
       orderId,
+      paymentEarn,
     };
   });
 

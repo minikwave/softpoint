@@ -58,12 +58,20 @@ export interface GetTransactionsOpts {
   type?: string;
 }
 
+export interface SpendPaymentEarn {
+  amount: string;
+  txId: string;
+  policyId: string;
+  policyVersion: string;
+}
+
 export interface SpendRes {
   txId: string;
   receiptId: string;
   userId: string;
   amount: string;
   orderId: string;
+  paymentEarn?: SpendPaymentEarn;
 }
 
 export interface ConversionRes {

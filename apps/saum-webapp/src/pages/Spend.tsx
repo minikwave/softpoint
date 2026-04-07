@@ -9,7 +9,11 @@ export default function Spend() {
   const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ receiptId: string; amount: string } | null>(null);
+  const [result, setResult] = useState<{
+    receiptId: string;
+    amount: string;
+    paymentEarn?: { amount: string; policyVersion: string };
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +42,13 @@ export default function Spend() {
       return;
     }
     if (data) {
-      setResult({ receiptId: data.receiptId, amount: data.amount });
+      setResult({
+        receiptId: data.receiptId,
+        amount: data.amount,
+        paymentEarn: data.paymentEarn
+          ? { amount: data.paymentEarn.amount, policyVersion: data.paymentEarn.policyVersion }
+          : undefined,
+      });
       setAmount('');
       setOrderId('');
     }
@@ -84,6 +94,12 @@ export default function Spend() {
         {result && (
           <div className="msg-success">
             결제 완료 — 영수증 ID: {result.receiptId}, 차감: {Number(result.amount).toLocaleString('ko-KR')} PP
+            {result.paymentEarn ? (
+              <>
+                <br />
+                결제 적립: +{Number(result.paymentEarn.amount).toLocaleString('ko-KR')} PP (정책 {result.paymentEarn.policyVersion})
+              </>
+            ) : null}
           </div>
         )}
         <button type="submit" className="btn btn-primary" disabled={loading}>

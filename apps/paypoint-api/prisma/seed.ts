@@ -46,6 +46,41 @@ const SEED_PLACES = [
   },
 ];
 
+async function seedPaymentEarnPolicyIfNoneActive() {
+  const active = await prisma.paypointPolicy.findFirst({
+    where: { policyId: 'PAYMENT_EARN_POLICY', status: 'ACTIVE' },
+  });
+  if (active) return;
+  await prisma.paypointPolicy.upsert({
+    where: {
+      policyId_version: { policyId: 'PAYMENT_EARN_POLICY', version: 'seed-2026.1' },
+    },
+    create: {
+      policyId: 'PAYMENT_EARN_POLICY',
+      version: 'seed-2026.1',
+      policyJson: {
+        percent_bps: 100,
+        min_payment_amount: '1',
+        max_earn_per_tx: '50000',
+        round_down: true,
+      },
+      status: 'ACTIVE',
+      effectiveFrom: new Date(),
+    },
+    update: {
+      policyJson: {
+        percent_bps: 100,
+        min_payment_amount: '1',
+        max_earn_per_tx: '50000',
+        round_down: true,
+      },
+      status: 'ACTIVE',
+      effectiveFrom: new Date(),
+    },
+  });
+  console.log('Seeded PAYMENT_EARN_POLICY (ACTIVE seed-2026.1) for Spend 적립');
+}
+
 async function main() {
   for (const p of SEED_PLACES) {
     await prisma.paypointEarnLocation.upsert({
@@ -74,6 +109,7 @@ async function main() {
     });
   }
   console.log(`Seeded ${SEED_PLACES.length} paypoint_earn_locations`);
+  await seedPaymentEarnPolicyIfNoneActive();
 }
 
 main()
