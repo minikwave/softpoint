@@ -1,6 +1,6 @@
 # 현재 구조·기능·UX·사용성 정리 & 추후 유저 플로우
 
-PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. 상세 로드맵 ID는 [PROJECT_ANALYSIS_AND_PLAN.md §10](../PROJECT_ANALYSIS_AND_PLAN.md)를 본다(`PG-` `DC-` `UX-` `MSG-` 포함).
+PayPoint(saum) 레포 기준 **2026년 4월** 시점 스냅샷. **앱 가칭명은 쌓음·기술 슬러그 saum**; 문서의 「모음」은 스토리 용어다. [PRODUCT_NAMING.md](./PRODUCT_NAMING.md). 로드맵 ID는 [PROJECT_ANALYSIS_AND_PLAN.md §10](../PROJECT_ANALYSIS_AND_PLAN.md)(`PG-` `DC-` `UX-` `MSG-` 포함).
 
 ---
 
