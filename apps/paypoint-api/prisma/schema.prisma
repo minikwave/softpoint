@@ -39,17 +39,12 @@ model PaypointTransaction {
 }
 
 model PaypointPolicy {
-  policyId      String    @map("policy_id") @db.Text
-  version       String    @db.Text
-  policyJson    Json      @map("policy_json") @db.JsonB
+  policyId      String   @map("policy_id") @db.Text
+  version       String   @db.Text
+  policyJson    Json     @map("policy_json") @db.JsonB
   effectiveFrom DateTime? @map("effective_from") @db.Timestamptz(6)
-  /// DRAFT → SUBMITTED → APPROVED → ACTIVE | SUPERSEDED
-  status        String    @default("DRAFT") @db.Text
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@id([policyId, version])
-  @@index([policyId, status])
   @@map("paypoint_policies")
 }
 
@@ -96,42 +91,4 @@ model IdempotencyRecord {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("idempotency_records")
-}
-
-/// 가맹·적립 장소 마스터 (디앱 EarnMap, M1-4)
-model PaypointEarnLocation {
-  id         String   @id @default(uuid()) @db.Uuid
-  name       String   @db.Text
-  category   String   @db.Text
-  address    String   @db.Text
-  lat        Decimal  @db.Decimal(10, 7)
-  lng        Decimal  @db.Decimal(10, 7)
-  earnRate   String?  @map("earn_rate") @db.Text
-  sortOrder  Int      @default(0) @map("sort_order")
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([isActive, sortOrder])
-  @@map("paypoint_earn_locations")
-}
-
-/// 운영 예외·HOLD 검토 큐 (B1-3)
-model PaypointException {
-  id             String    @id @default(uuid()) @db.Uuid
-  referenceType  String    @map("reference_type") @db.Text
-  referenceId    String    @map("reference_id") @db.Text
-  userId         String?   @map("user_id") @db.Text
-  title          String    @db.Text
-  detail         Json?     @db.JsonB
-  status         String    @default("OPEN") @db.Text
-  resolutionNote String?   @map("resolution_note") @db.Text
-  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
-  resolvedBy     String?   @map("resolved_by") @db.Text
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([status, createdAt])
-  @@index([userId, status])
-  @@map("paypoint_exceptions")
 }

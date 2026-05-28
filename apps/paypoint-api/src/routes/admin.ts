@@ -1,36 +1,19 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { Prisma } from '@prisma/client';
-import type { PaypointException, PaypointPolicy } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { getRequiredAdminApiKey, extractAdminApiKey } from '../lib/adminAuth.js';
-import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { getAccountByUserId } from '../services/account.js';
 import { decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
-import { writeAuditLog, listAuditLogs } from '../services/audit.js';
+import { writeAuditLog } from '../services/audit.js';
 import {
   authorizeConversion,
   settleConversion,
   failConversion,
 } from '../services/conversion.js';
-import {
-  createPolicyDraft,
-  submitPolicy,
-  approvePolicy,
-  activatePolicy,
-  listPolicies,
-} from '../services/policyWorkflow.js';
-import {
-  enqueueException,
-  listExceptions,
-  resolveException,
-} from '../services/exceptionsQueue.js';
 
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
   if (msg === 'INSUFFICIENT_BALANCE') return { statusCode: 402, code: msg, message: msg };
-  if (msg === 'CONVERSION_NOT_FOUND' || msg === 'EXCEPTION_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
-  if (msg === 'EXCEPTION_INVALID_STATUS') return { statusCode: 409, code: msg, message: msg };
+  if (msg === 'CONVERSION_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
   if (msg === 'INVALID_AMOUNT' || msg.startsWith('INVALID_') || msg === 'CONVERSION_INVALID_STATUS') return { statusCode: 400, code: msg, message: msg };
   return { statusCode: 500, code: 'INTERNAL_ERROR', message: 'Internal server error' };
 }
@@ -39,55 +22,6 @@ export async function adminRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
-  const adminKey = getRequiredAdminApiKey();
-  if (adminKey) {
-    fastify.addHook('onRequest', async (request, reply) => {
-      const provided = extractAdminApiKey(request.headers);
-      if (provided !== adminKey) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'Invalid or missing admin API key' },
-        });
-      }
-    });
-  }
-
-  // GET /v1/admin/audit-logs — append-only audit trail (newest first, cursor pagination)
-  fastify.get<{
-    Querystring: {
-      actor_id?: string;
-      action?: string;
-      target_type?: string;
-      limit?: string;
-      cursor?: string;
-    };
-  }>('/audit-logs', async (request, reply) => {
-    const { actor_id, action, target_type, limit = '50', cursor } = request.query;
-    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
-    const { rows, nextCursor } = await listAuditLogs({
-      actorId: actor_id,
-      action,
-      targetType: target_type,
-      limit: take,
-      cursor,
-    });
-
-    return reply.send({
-      items: rows.map((r) => ({
-        id: r.id,
-        actor_id: r.actorId,
-        actor_role: r.actorRole,
-        action: r.action,
-        target_type: r.targetType,
-        target_id: r.targetId,
-        before: r.before ?? undefined,
-        after: r.after ?? undefined,
-        request_id: r.requestId ?? undefined,
-        created_at: r.createdAt.toISOString(),
-      })),
-      next_cursor: nextCursor,
-    });
-  });
-
   // GET /v1/admin/users — search accounts by user_id (prefix match) or list with limit
   fastify.get<{
     Querystring: { user_id?: string; status?: string; limit?: string };
@@ -176,10 +110,6 @@ export async function adminRoutes(
       expires_at?: string;
       actor_id?: string;
       actor_role?: string;
-      idempotency_key?: string;
-      source?: string;
-      external_ref?: string;
-      campaign_id?: string;
     };
   }>('/credits/issue', async (request, reply) => {
     const body = request.body;
@@ -193,38 +123,13 @@ export async function adminRoutes(
     const actorId = body.actor_id ?? 'system';
     const actorRole = body.actor_role ?? 'Ops Admin';
 
-    const idempotencyKey = body.idempotency_key?.trim();
-    if (idempotencyKey) {
-      const stored = await getIdempotentResponse(idempotencyKey);
-      if (stored) {
-        return reply.status(200).send(stored);
-      }
-    }
-
-    const accountBefore = await getAccountByUserId(body.user_id);
-    const beforeAudit = accountBefore
-      ? {
-          account_id: accountBefore.id,
-          balance: decimalToBigint(accountBefore.balance).toString(),
-          reserved_balance: decimalToBigint(accountBefore.reservedBalance).toString(),
-          status: accountBefore.status,
-        }
-      : { account_existed: false };
-
     try {
       const result = await issueCredit({
         userId: body.user_id,
         amount,
         reason: body.reason,
         expiresAt: body.expires_at,
-        source: body.source ?? 'admin_manual',
-        externalRef: body.external_ref,
-        campaignId: body.campaign_id,
       });
-
-      if (idempotencyKey) {
-        await setIdempotentResponse(idempotencyKey, result as object);
-      }
 
       await writeAuditLog({
         actorId,
@@ -232,15 +137,11 @@ export async function adminRoutes(
         action: 'CREDITS_ISSUE',
         targetType: 'account',
         targetId: result.accountId,
-        before: beforeAudit,
         after: {
           user_id: result.userId,
           amount: result.amount,
           reason: body.reason,
           tx_id: result.txId,
-          source: body.source ?? 'admin_manual',
-          external_ref: body.external_ref,
-          campaign_id: body.campaign_id,
         },
         requestId: request.id,
       });
@@ -286,43 +187,9 @@ export async function adminRoutes(
   });
 
   // POST /v1/admin/conversions/:id/approve — authorize (lock credits)
-  fastify.post<{
-    Params: { id: string };
-    Body?: { actor_id?: string; actor_role?: string };
-  }>('/conversions/:id/approve', async (request, reply) => {
-    const body = request.body ?? {};
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const convBefore = await prisma.paypointConversion.findUnique({
-      where: { id: request.params.id },
-    });
-    if (!convBefore) {
-      return reply.status(404).send({
-        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
-      });
-    }
+  fastify.post<{ Params: { id: string } }>('/conversions/:id/approve', async (request, reply) => {
     try {
       const result = await authorizeConversion(request.params.id);
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'CONVERSION_APPROVE',
-        targetType: 'conversion',
-        targetId: result.id,
-        before: {
-          status: convBefore.status,
-          user_id: convBefore.userId,
-          from_amount: convBefore.fromAmount.toString(),
-          type: convBefore.type,
-        },
-        after: {
-          userId: result.userId,
-          status: result.status,
-          fromAmount: result.fromAmount,
-          type: result.type,
-        },
-        requestId: request.id,
-      });
       return reply.status(200).send(result);
     } catch (err) {
       const e = toHttpError(err);
@@ -333,43 +200,12 @@ export async function adminRoutes(
   // POST /v1/admin/conversions/:id/settle — settle (consume locked credits, optional tx_hash)
   fastify.post<{
     Params: { id: string };
-    Body?: { tx_hash?: string; settlement_ref?: string; actor_id?: string; actor_role?: string };
+    Body: { tx_hash?: string; settlement_ref?: string };
   }>('/conversions/:id/settle', async (request, reply) => {
-    const body = request.body ?? {};
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const convBefore = await prisma.paypointConversion.findUnique({
-      where: { id: request.params.id },
-    });
-    if (!convBefore) {
-      return reply.status(404).send({
-        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
-      });
-    }
     try {
       const result = await settleConversion(request.params.id, {
-        txHash: body.tx_hash,
-        settlementRef: body.settlement_ref,
-      });
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'CONVERSION_SETTLE',
-        targetType: 'conversion',
-        targetId: result.id,
-        before: {
-          status: convBefore.status,
-          user_id: convBefore.userId,
-          from_amount: convBefore.fromAmount.toString(),
-        },
-        after: {
-          userId: result.userId,
-          status: result.status,
-          fromAmount: result.fromAmount,
-          txHash: result.txHash,
-          settlementRef: result.settlementRef,
-        },
-        requestId: request.id,
+        txHash: request.body?.tx_hash,
+        settlementRef: request.body?.settlement_ref,
       });
       return reply.status(200).send(result);
     } catch (err) {
@@ -379,360 +215,10 @@ export async function adminRoutes(
   });
 
   // POST /v1/admin/conversions/:id/fail — fail (unlock credits)
-  fastify.post<{
-    Params: { id: string };
-    Body?: { actor_id?: string; actor_role?: string };
-  }>('/conversions/:id/fail', async (request, reply) => {
-    const body = request.body ?? {};
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const convBefore = await prisma.paypointConversion.findUnique({
-      where: { id: request.params.id },
-    });
-    if (!convBefore) {
-      return reply.status(404).send({
-        error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
-      });
-    }
+  fastify.post<{ Params: { id: string } }>('/conversions/:id/fail', async (request, reply) => {
     try {
       const result = await failConversion(request.params.id);
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'CONVERSION_FAIL',
-        targetType: 'conversion',
-        targetId: result.id,
-        before: {
-          status: convBefore.status,
-          user_id: convBefore.userId,
-          from_amount: convBefore.fromAmount.toString(),
-        },
-        after: {
-          userId: result.userId,
-          status: result.status,
-          fromAmount: result.fromAmount,
-        },
-        requestId: request.id,
-      });
       return reply.status(200).send(result);
-    } catch (err) {
-      const e = toHttpError(err);
-      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
-    }
-  });
-
-  function policyDto(p: PaypointPolicy) {
-    return {
-      policy_id: p.policyId,
-      version: p.version,
-      policy_json: p.policyJson,
-      effective_from: p.effectiveFrom?.toISOString() ?? null,
-      status: p.status,
-      created_at: p.createdAt.toISOString(),
-      updated_at: p.updatedAt.toISOString(),
-    };
-  }
-
-  // GET /v1/admin/policies — list revisions (newest updated first)
-  fastify.get<{
-    Querystring: { policy_id?: string; status?: string; limit?: string };
-  }>('/policies', async (request, reply) => {
-    const { policy_id, status, limit = '50' } = request.query;
-    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
-    const rows = await listPolicies({ policyId: policy_id, status, limit: take });
-    return reply.send({
-      items: rows.map(policyDto),
-      count: rows.length,
-    });
-  });
-
-  // POST /v1/admin/policies/draft — create DRAFT revision
-  fastify.post<{
-    Body: {
-      policy_id: string;
-      version: string;
-      policy_json: object;
-      actor_id?: string;
-      actor_role?: string;
-    };
-  }>('/policies/draft', async (request, reply) => {
-    const body = request.body;
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    if (body.policy_json === undefined || body.policy_json === null) {
-      return reply.status(400).send({
-        error: { code: 'INVALID_BODY', message: 'policy_json is required' },
-      });
-    }
-    try {
-      const created = await createPolicyDraft({
-        policyId: body.policy_id,
-        version: body.version,
-        policyJson: body.policy_json as object,
-      });
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'POLICY_DRAFT',
-        targetType: 'policy',
-        targetId: `${created.policyId}:${created.version}`,
-        after: policyDto(created),
-        requestId: request.id,
-      });
-      return reply.status(201).send(policyDto(created));
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        return reply.status(409).send({
-          error: { code: 'POLICY_VERSION_EXISTS', message: 'policy_id and version already exist' },
-        });
-      }
-      if (err instanceof Error && err.message === 'INVALID_POLICY_KEY') {
-        return reply.status(400).send({
-          error: { code: 'INVALID_BODY', message: 'policy_id and version must be non-empty' },
-        });
-      }
-      throw err;
-    }
-  });
-
-  // POST /v1/admin/policies/submit — DRAFT → SUBMITTED
-  fastify.post<{
-    Body: { policy_id: string; version: string; actor_id?: string; actor_role?: string };
-  }>('/policies/submit', async (request, reply) => {
-    const body = request.body;
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const before = await prisma.paypointPolicy.findUnique({
-      where: {
-        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
-      },
-    });
-    const result = await submitPolicy(body.policy_id, body.version);
-    if ('error' in result) {
-      const pe = result.error;
-      if (pe.code === 'NOT_FOUND') {
-        return reply.status(404).send({
-          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
-        });
-      }
-      return reply.status(409).send({
-        error: {
-          code: 'POLICY_INVALID_STATE',
-          message: `Cannot submit from status ${pe.current}`,
-        },
-      });
-    }
-    await writeAuditLog({
-      actorId,
-      actorRole,
-      action: 'POLICY_SUBMIT',
-      targetType: 'policy',
-      targetId: `${result.policy.policyId}:${result.policy.version}`,
-      before: before ? policyDto(before) : undefined,
-      after: policyDto(result.policy),
-      requestId: request.id,
-    });
-    return reply.send(policyDto(result.policy));
-  });
-
-  // POST /v1/admin/policies/approve — SUBMITTED → APPROVED
-  fastify.post<{
-    Body: { policy_id: string; version: string; actor_id?: string; actor_role?: string };
-  }>('/policies/approve', async (request, reply) => {
-    const body = request.body;
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const before = await prisma.paypointPolicy.findUnique({
-      where: {
-        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
-      },
-    });
-    const result = await approvePolicy(body.policy_id, body.version);
-    if ('error' in result) {
-      const pe = result.error;
-      if (pe.code === 'NOT_FOUND') {
-        return reply.status(404).send({
-          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
-        });
-      }
-      return reply.status(409).send({
-        error: {
-          code: 'POLICY_INVALID_STATE',
-          message: `Cannot approve from status ${pe.current}`,
-        },
-      });
-    }
-    await writeAuditLog({
-      actorId,
-      actorRole,
-      action: 'POLICY_APPROVE',
-      targetType: 'policy',
-      targetId: `${result.policy.policyId}:${result.policy.version}`,
-      before: before ? policyDto(before) : undefined,
-      after: policyDto(result.policy),
-      requestId: request.id,
-    });
-    return reply.send(policyDto(result.policy));
-  });
-
-  // POST /v1/admin/policies/activate — APPROVED → ACTIVE (others ACTIVE → SUPERSEDED)
-  fastify.post<{
-    Body: {
-      policy_id: string;
-      version: string;
-      effective_from?: string;
-      actor_id?: string;
-      actor_role?: string;
-    };
-  }>('/policies/activate', async (request, reply) => {
-    const body = request.body;
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const before = await prisma.paypointPolicy.findUnique({
-      where: {
-        policyId_version: { policyId: body.policy_id.trim(), version: body.version.trim() },
-      },
-    });
-    let eff: Date | undefined;
-    if (body.effective_from?.trim()) {
-      eff = new Date(body.effective_from.trim());
-      if (Number.isNaN(eff.getTime())) {
-        return reply.status(400).send({
-          error: { code: 'INVALID_EFFECTIVE_FROM', message: 'effective_from must be ISO-8601' },
-        });
-      }
-    }
-    const result = await activatePolicy(body.policy_id, body.version, eff);
-    if ('error' in result) {
-      const pe = result.error;
-      if (pe.code === 'NOT_FOUND') {
-        return reply.status(404).send({
-          error: { code: 'POLICY_NOT_FOUND', message: 'Policy revision not found' },
-        });
-      }
-      return reply.status(409).send({
-        error: {
-          code: 'POLICY_INVALID_STATE',
-          message: `Cannot activate from status ${pe.current}`,
-        },
-      });
-    }
-    await writeAuditLog({
-      actorId,
-      actorRole,
-      action: 'POLICY_ACTIVATE',
-      targetType: 'policy',
-      targetId: `${result.policy.policyId}:${result.policy.version}`,
-      before: before ? policyDto(before) : undefined,
-      after: policyDto(result.policy),
-      requestId: request.id,
-    });
-    return reply.send(policyDto(result.policy));
-  });
-
-  function exceptionDto(e: PaypointException) {
-    return {
-      id: e.id,
-      reference_type: e.referenceType,
-      reference_id: e.referenceId,
-      user_id: e.userId ?? undefined,
-      title: e.title,
-      detail: e.detail ?? undefined,
-      status: e.status,
-      resolution_note: e.resolutionNote ?? undefined,
-      resolved_at: e.resolvedAt?.toISOString() ?? null,
-      resolved_by: e.resolvedBy ?? undefined,
-      created_at: e.createdAt.toISOString(),
-      updated_at: e.updatedAt.toISOString(),
-    };
-  }
-
-  // GET /v1/admin/exceptions — 예외 큐 (OPEN·HOLD 검토용)
-  fastify.get<{
-    Querystring: { status?: string; user_id?: string; limit?: string };
-  }>('/exceptions', async (request, reply) => {
-    const { status, user_id, limit = '50' } = request.query;
-    const take = Math.min(Number.parseInt(limit, 10) || 50, 200);
-    const rows = await listExceptions({ status, userId: user_id, limit: take });
-    return reply.send({ items: rows.map(exceptionDto), count: rows.length });
-  });
-
-  // POST /v1/admin/exceptions — 큐에 등록
-  fastify.post<{
-    Body: {
-      reference_type: string;
-      reference_id: string;
-      title: string;
-      user_id?: string;
-      detail?: object;
-      actor_id?: string;
-      actor_role?: string;
-    };
-  }>('/exceptions', async (request, reply) => {
-    const body = request.body;
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    try {
-      const created = await enqueueException({
-        referenceType: body.reference_type,
-        referenceId: body.reference_id,
-        title: body.title,
-        userId: body.user_id,
-        detail: body.detail,
-      });
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'EXCEPTION_ENQUEUE',
-        targetType: 'exception',
-        targetId: created.id,
-        after: exceptionDto(created),
-        requestId: request.id,
-      });
-      return reply.status(201).send(exceptionDto(created));
-    } catch (err) {
-      const e = toHttpError(err);
-      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
-    }
-  });
-
-  // POST /v1/admin/exceptions/:id/resolve — 처리 완료 또는 기각
-  fastify.post<{
-    Params: { id: string };
-    Body?: {
-      disposition?: 'RESOLVED' | 'DISMISSED';
-      resolution_note?: string;
-      actor_id?: string;
-      actor_role?: string;
-    };
-  }>('/exceptions/:id/resolve', async (request, reply) => {
-    const body = request.body ?? {};
-    const actorId = body.actor_id ?? 'system';
-    const actorRole = body.actor_role ?? 'Ops Admin';
-    const disposition = body.disposition ?? 'RESOLVED';
-    if (disposition !== 'RESOLVED' && disposition !== 'DISMISSED') {
-      return reply.status(400).send({
-        error: { code: 'INVALID_DISPOSITION', message: 'disposition must be RESOLVED or DISMISSED' },
-      });
-    }
-    const before = await prisma.paypointException.findUnique({ where: { id: request.params.id } });
-    try {
-      const updated = await resolveException(request.params.id, {
-        disposition,
-        resolutionNote: body.resolution_note,
-        resolvedBy: actorId,
-      });
-      await writeAuditLog({
-        actorId,
-        actorRole,
-        action: 'EXCEPTION_RESOLVE',
-        targetType: 'exception',
-        targetId: updated.id,
-        before: before ? exceptionDto(before) : undefined,
-        after: exceptionDto(updated),
-        requestId: request.id,
-      });
-      return reply.send(exceptionDto(updated));
     } catch (err) {
       const e = toHttpError(err);
       return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });

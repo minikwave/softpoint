@@ -6,10 +6,6 @@ export interface IssueParams {
   amount: bigint;
   reason: string;
   expiresAt?: string;
-  /** M1-1: provenance for merge / reporting (stored in transaction metadata) */
-  source?: string;
-  externalRef?: string;
-  campaignId?: string;
 }
 
 export interface IssueResult {
@@ -24,14 +20,8 @@ export interface IssueResult {
  * Atomic in one transaction.
  */
 export async function issueCredit(params: IssueParams): Promise<IssueResult> {
-  const { userId, amount, reason, expiresAt, source, externalRef, campaignId } = params;
+  const { userId, amount, reason, expiresAt } = params;
   if (amount <= 0n) throw new Error('INVALID_AMOUNT');
-
-  const metadata: Record<string, unknown> = { reason };
-  if (expiresAt) metadata.expires_at = expiresAt;
-  if (source?.trim()) metadata.source = source.trim();
-  if (externalRef?.trim()) metadata.external_ref = externalRef.trim();
-  if (campaignId?.trim()) metadata.campaign_id = campaignId.trim();
 
   const result = await prisma.$transaction(async (tx) => {
     let account = await tx.paypointAccount.findUnique({ where: { userId } });
@@ -59,7 +49,7 @@ export async function issueCredit(params: IssueParams): Promise<IssueResult> {
         accountId: account.id,
         type: 'ISSUE',
         amount: bigintToDecimal(amount),
-        metadata: metadata as object,
+        metadata: { reason, expires_at: expiresAt } as object,
       },
     });
 

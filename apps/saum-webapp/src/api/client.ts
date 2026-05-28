@@ -1,21 +1,11 @@
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
-/** When API has USER_JWT_SECRET, set VITE_USER_JWT or localStorage paypoint_jwt (HS256, sub=user_id). */
-function userAuthHeaders(): Record<string, string> {
-  const fromEnv = import.meta.env.VITE_USER_JWT as string | undefined;
-  const fromLs =
-    typeof localStorage !== 'undefined' ? localStorage.getItem('paypoint_jwt') : null;
-  const token = (fromEnv?.trim() || fromLs?.trim()) ?? '';
-  if (token) return { Authorization: `Bearer ${token}` };
-  return {};
-}
-
 async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<{ data?: T; error?: { code: string; message: string } }> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...userAuthHeaders(), ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
   const json = await res.json().catch(() => ({}));
@@ -38,7 +28,6 @@ export interface TransactionItem {
   amount: string;
   order_id?: string;
   receipt_id?: string;
-  metadata?: Record<string, unknown>;
   created_at: string;
 }
 
@@ -48,30 +37,12 @@ export interface TransactionsRes {
   next_cursor: string | null;
 }
 
-/** GET /v1/paypoint/transactions 옵션 (type·source는 API 쿼리와 동일) */
-export interface GetTransactionsOpts {
-  limit?: number;
-  cursor?: string;
-  /** metadata.source 문자열 전체 일치 */
-  source?: string;
-  /** ISSUE | SPEND | EXPIRE | ADJUST */
-  type?: string;
-}
-
-export interface SpendPaymentEarn {
-  amount: string;
-  txId: string;
-  policyId: string;
-  policyVersion: string;
-}
-
 export interface SpendRes {
   txId: string;
   receiptId: string;
   userId: string;
   amount: string;
   orderId: string;
-  paymentEarn?: SpendPaymentEarn;
 }
 
 export interface ConversionRes {
@@ -93,38 +64,14 @@ export interface ConversionsListRes {
   items: ConversionRes[];
 }
 
-export interface EarnLocationItem {
-  id: string;
-  name: string;
-  category: string;
-  address: string;
-  lat: number;
-  lng: number;
-  earn_rate?: string;
-}
-
-export interface EarnLocationsRes {
-  items: EarnLocationItem[];
-}
-
 export const api = {
-  getEarnLocations(opts?: { category?: string }) {
-    const params = new URLSearchParams();
-    if (opts?.category?.trim()) params.set('category', opts.category.trim());
-    const q = params.toString();
-    return request<EarnLocationsRes>(`/v1/paypoint/earn-locations${q ? `?${q}` : ''}`);
-  },
-
   getBalance(userId: string) {
     return request<BalanceRes>(`/v1/paypoint/balance/${encodeURIComponent(userId)}`);
   },
 
-  getTransactions(userId: string, opts: GetTransactionsOpts = {}) {
-    const { limit = 20, cursor, source, type } = opts;
+  getTransactions(userId: string, limit = 20, cursor?: string) {
     const params = new URLSearchParams({ user_id: userId, limit: String(limit) });
     if (cursor) params.set('cursor', cursor);
-    if (source?.trim()) params.set('source', source.trim());
-    if (type?.trim()) params.set('type', type.trim().toUpperCase());
     return request<TransactionsRes>(`/v1/paypoint/transactions?${params}`);
   },
 
@@ -135,15 +82,7 @@ export const api = {
     });
   },
 
-  requestConversion(body: {
-    user_id: string;
-    type: string;
-    from_amount: string;
-    to_asset: string;
-    to_chain_id?: number;
-    idempotency_key?: string;
-    client_request_id?: string;
-  }) {
+  requestConversion(body: { user_id: string; type: string; from_amount: string; to_asset: string; to_chain_id?: number }) {
     return request<ConversionRes>('/v1/paypoint/conversion/request', {
       method: 'POST',
       body: JSON.stringify(body),

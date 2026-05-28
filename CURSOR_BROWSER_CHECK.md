@@ -17,9 +17,7 @@
 
 | URL | 확인 내용 |
 |-----|-----------|
-| http://localhost:5173 | 랜딩 — 헤더(제품·개발자·디앱), MVP 데모 pill, **디앱 들어가기**, **가게 관리** |
-| http://localhost:5173/product | 제품 — 쌓음/PayPoint, MVP·한계·로드맵 링크 |
-| http://localhost:5173/developers | 개발자 — 빠른 시작, OpenAPI·문서 링크(기본 GitHub) |
+| http://localhost:5173 | 랜딩 — "쌓음", **디앱 들어가기**, **가게 관리** 버튼 |
 | http://localhost:5173/app | 디앱 — 잔액 / 내역 / 결제 / 정산 옵션 / 가게 메뉴 |
 | http://localhost:5173/app/store | 가게 — 가맹점 ID, 정산 요청, 전환 목록 |
 

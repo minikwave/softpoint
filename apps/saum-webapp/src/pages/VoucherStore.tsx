@@ -66,10 +66,7 @@ export default function VoucherStore() {
     <>
       <h1 className="page-title">디지털 상품권 스토어</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        PayPoint로 디지털 상품권을 구매해 사용할 수 있습니다.{' '}
-        <span className="demo-pill" title="상품 목록은 MVP 목업; 결제는 Spend API 연동">
-          데모 상품
-        </span>
+        PayPoint로 디지털 상품권을 구매해 사용할 수 있습니다.
       </p>
 
       <div className="card">

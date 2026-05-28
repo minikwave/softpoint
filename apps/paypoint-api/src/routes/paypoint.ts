@@ -1,34 +1,12 @@
-import type { Prisma } from '@prisma/client';
-import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { getAccountByUserId, decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
 import { spendCredit } from '../services/spend.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { requestConversion, getConversion, listConversionsByUser } from '../services/conversion.js';
 import { prisma } from '../lib/prisma.js';
-import { isUserJwtEnforced, verifyUserBearerToken } from '../lib/userJwt.js';
 
 const PARAM_USER_ID = 'user_id';
-
-function userMatchesJwt(request: FastifyRequest, userId: string, reply: FastifyReply): boolean {
-  if (!isUserJwtEnforced()) return true;
-  if (!request.jwtUserId || request.jwtUserId !== userId) {
-    void reply.status(403).send({
-      error: { code: 'FORBIDDEN', message: 'JWT sub must match user_id for this operation' },
-    });
-    return false;
-  }
-  return true;
-}
-
-const TX_TYPES = new Set(['ISSUE', 'SPEND', 'EXPIRE', 'ADJUST']);
-
-function storedUserId(obj: unknown): string | undefined {
-  if (obj && typeof obj === 'object' && 'userId' in obj && typeof (obj as { userId: unknown }).userId === 'string') {
-    return (obj as { userId: string }).userId;
-  }
-  return undefined;
-}
 
 /**
  * Map domain/engine errors to HTTP status and body.
@@ -45,53 +23,11 @@ export async function paypointRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
-  if (isUserJwtEnforced()) {
-    fastify.addHook('onRequest', async (request, reply) => {
-      const auth = request.headers.authorization;
-      if (!auth?.startsWith('Bearer ')) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'Bearer token required (USER_JWT_SECRET is set)' },
-        });
-      }
-      try {
-        request.jwtUserId = await verifyUserBearerToken(auth.slice(7).trim());
-      } catch {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' },
-        });
-      }
-    });
-  }
-
-  // GET /v1/paypoint/earn-locations — 가맹·적립 장소 목록 (JWT 적용 시에도 user_id 불필요)
-  fastify.get<{ Querystring: { category?: string } }>('/earn-locations', async (request, reply) => {
-    const cat = request.query.category?.trim();
-    const rows = await prisma.paypointEarnLocation.findMany({
-      where: {
-        isActive: true,
-        ...(cat ? { category: cat } : {}),
-      },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    });
-    return reply.send({
-      items: rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        address: r.address,
-        lat: Number(r.lat),
-        lng: Number(r.lng),
-        earn_rate: r.earnRate ?? undefined,
-      })),
-    });
-  });
-
   // GET /v1/paypoint/balance/:user_id
   fastify.get<{ Params: Record<typeof PARAM_USER_ID, string> }>(
     '/balance/:user_id',
     async (request, reply) => {
       const userId = request.params[PARAM_USER_ID];
-      if (!userMatchesJwt(request, userId, reply)) return;
       const account = await getAccountByUserId(userId);
       if (!account) {
         return reply.status(404).send({
@@ -110,12 +46,11 @@ export async function paypointRoutes(
     }
   );
 
-  // GET /v1/paypoint/transactions — optional filters: type (ISSUE|…), source (metadata.source exact match)
+  // GET /v1/paypoint/transactions
   fastify.get<{
-    Querystring: { user_id: string; limit?: string; cursor?: string; type?: string; source?: string };
+    Querystring: { user_id: string; limit?: string; cursor?: string };
   }>('/transactions', async (request, reply) => {
-    const { user_id, limit = '20', cursor, type: typeQ, source: sourceQ } = request.query;
-    if (!userMatchesJwt(request, user_id, reply)) return;
+    const { user_id, limit = '20', cursor } = request.query;
     const take = Math.min(Number.parseInt(limit, 10) || 20, 100);
     const account = await getAccountByUserId(user_id);
     if (!account) {
@@ -123,24 +58,8 @@ export async function paypointRoutes(
         error: { code: 'ACCOUNT_NOT_FOUND', message: 'Account not found' },
       });
     }
-    const typeTrim = typeQ?.trim();
-    const typeUpper = typeTrim ? typeTrim.toUpperCase() : undefined;
-    if (typeUpper && !TX_TYPES.has(typeUpper)) {
-      return reply.status(400).send({
-        error: {
-          code: 'INVALID_TYPE',
-          message: 'type must be one of ISSUE, SPEND, EXPIRE, ADJUST',
-        },
-      });
-    }
-    const sourceTrim = sourceQ?.trim() ?? '';
-    const where: Prisma.PaypointTransactionWhereInput = { accountId: account.id };
-    if (typeUpper) where.type = typeUpper;
-    if (sourceTrim) {
-      where.metadata = { path: ['source'], equals: sourceTrim };
-    }
     const items = await prisma.paypointTransaction.findMany({
-      where,
+      where: { accountId: account.id },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -150,65 +69,37 @@ export async function paypointRoutes(
     const nextCursor = hasMore ? list[list.length - 1]?.id ?? null : null;
     return reply.send({
       user_id: user_id,
-      items: list.map((t: { id: string; accountId: string; type: string; amount: { toString(): string }; orderId: string | null; receiptId: string | null; metadata: unknown; createdAt: Date }) => ({
+      items: list.map((t: { id: string; accountId: string; type: string; amount: { toString(): string }; orderId: string | null; receiptId: string | null; createdAt: Date }) => ({
         tx_id: t.id,
         account_id: t.accountId,
         type: t.type,
         amount: t.amount.toString(),
         order_id: t.orderId ?? undefined,
         receipt_id: t.receiptId ?? undefined,
-        metadata: t.metadata ?? undefined,
         created_at: t.createdAt.toISOString(),
       })),
       next_cursor: nextCursor,
     });
   });
 
-  // POST /v1/paypoint/issue (optional idempotency_key — replays return 200 + same body)
+  // POST /v1/paypoint/issue
   fastify.post<{
-    Body: {
-      user_id: string;
-      amount: string;
-      reason: string;
-      expires_at?: string;
-      idempotency_key?: string;
-      source?: string;
-      external_ref?: string;
-      campaign_id?: string;
-    };
+    Body: { user_id: string; amount: string; reason: string; expires_at?: string };
   }>('/issue', async (request, reply) => {
     const body = request.body;
-    if (!userMatchesJwt(request, body.user_id, reply)) return;
     const amount = BigInt(body.amount);
     if (amount <= 0n) {
       return reply.status(400).send({
         error: { code: 'INVALID_AMOUNT', message: 'Amount must be positive' },
       });
     }
-
-    const idempotencyKey = body.idempotency_key?.trim();
-    if (idempotencyKey) {
-      const stored = await getIdempotentResponse(idempotencyKey);
-      if (stored) {
-        const su = storedUserId(stored);
-        if (su && !userMatchesJwt(request, su, reply)) return;
-        return reply.status(200).send(stored);
-      }
-    }
-
     try {
       const result = await issueCredit({
         userId: body.user_id,
         amount,
         reason: body.reason,
         expiresAt: body.expires_at,
-        source: body.source,
-        externalRef: body.external_ref,
-        campaignId: body.campaign_id,
       });
-      if (idempotencyKey) {
-        await setIdempotentResponse(idempotencyKey, result as object);
-      }
       return reply.status(201).send(result);
     } catch (err) {
       const e = toHttpError(err);
@@ -228,14 +119,10 @@ export async function paypointRoutes(
       });
     }
 
-    if (!userMatchesJwt(request, body.user_id, reply)) return;
-
     const idempotencyKey =
       body.idempotency_key ?? `spend:${body.user_id}:${body.order_id}`;
     const stored = await getIdempotentResponse(idempotencyKey);
     if (stored) {
-      const su = storedUserId(stored);
-      if (su && !userMatchesJwt(request, su, reply)) return;
       return reply.status(200).send(stored);
     }
 
@@ -254,44 +141,16 @@ export async function paypointRoutes(
   });
 
   // POST /v1/paypoint/conversion/request — request PayPoint → Stable conversion (MVP: MERCHANT_SETTLEMENT)
-  // Optional idempotency: idempotency_key (full key) or client_request_id → key conversion:{user_id}:{client_request_id}
   fastify.post<{
-    Body: {
-      user_id: string;
-      type: string;
-      from_amount: string;
-      to_asset: string;
-      to_chain_id?: number;
-      idempotency_key?: string;
-      client_request_id?: string;
-    };
+    Body: { user_id: string; type: string; from_amount: string; to_asset: string; to_chain_id?: number };
   }>('/conversion/request', async (request, reply) => {
     const body = request.body;
-    if (!userMatchesJwt(request, body.user_id, reply)) return;
     const amount = BigInt(body.from_amount);
     if (amount <= 0n) {
       return reply.status(400).send({
         error: { code: 'INVALID_AMOUNT', message: 'Amount must be positive' },
       });
     }
-
-    const idemFull = body.idempotency_key?.trim();
-    const clientRef = body.client_request_id?.trim();
-    const idempotencyKey = idemFull
-      ? idemFull
-      : clientRef
-        ? `conversion:${body.user_id}:${clientRef}`
-        : undefined;
-
-    if (idempotencyKey) {
-      const stored = await getIdempotentResponse(idempotencyKey);
-      if (stored) {
-        const su = storedUserId(stored);
-        if (su && !userMatchesJwt(request, su, reply)) return;
-        return reply.status(200).send(stored);
-      }
-    }
-
     try {
       const result = await requestConversion({
         userId: body.user_id,
@@ -300,9 +159,6 @@ export async function paypointRoutes(
         toAsset: body.to_asset,
         toChainId: body.to_chain_id,
       });
-      if (idempotencyKey) {
-        await setIdempotentResponse(idempotencyKey, result as object);
-      }
       return reply.status(201).send(result);
     } catch (err) {
       const e = toHttpError(err);
@@ -318,14 +174,12 @@ export async function paypointRoutes(
         error: { code: 'CONVERSION_NOT_FOUND', message: 'Conversion not found' },
       });
     }
-    if (!userMatchesJwt(request, conv.userId, reply)) return;
     return reply.send(conv);
   });
 
   // GET /v1/paypoint/conversions — list conversions for a user (own list)
-  fastify.get<{ Querystring: { user_id: string; limit?: string }   }>('/conversions', async (request, reply) => {
+  fastify.get<{ Querystring: { user_id: string; limit?: string } }>('/conversions', async (request, reply) => {
     const { user_id, limit = '50' } = request.query;
-    if (!userMatchesJwt(request, user_id, reply)) return;
     const take = Math.min(Number.parseInt(limit, 10) || 50, 100);
     const items = await listConversionsByUser(user_id, take);
     return reply.send({ user_id, items });
