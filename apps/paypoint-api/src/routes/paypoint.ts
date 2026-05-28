@@ -1,9 +1,12 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { getAccountByUserId, decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
 import { spendCredit } from '../services/spend.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { requestConversion, getConversion, listConversionsByUser } from '../services/conversion.js';
+import { listEarnLocations } from '../services/earnLocations.js';
+import { earnFromPayment } from '../services/paymentEarn.js';
 import { prisma } from '../lib/prisma.js';
 
 const PARAM_USER_ID = 'user_id';
@@ -23,6 +26,50 @@ export async function paypointRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  // GET /v1/paypoint/earn-locations
+  fastify.get<{ Querystring: { category?: string } }>('/earn-locations', async (request, reply) => {
+    const items = await listEarnLocations(request.query.category);
+    return reply.send({ items });
+  });
+
+  // POST /v1/paypoint/earn/payment — 결제 완료 후 적립 (PG/POS 연동)
+  fastify.post<{
+    Body: {
+      user_id: string;
+      payment_amount: string;
+      order_id: string;
+      merchant_id?: string;
+      idempotency_key?: string;
+    };
+  }>('/earn/payment', async (request, reply) => {
+    const body = request.body;
+    const paymentAmount = BigInt(body.payment_amount);
+    if (paymentAmount <= 0n) {
+      return reply.status(400).send({
+        error: { code: 'INVALID_AMOUNT', message: 'payment_amount must be positive' },
+      });
+    }
+    if (!body.order_id?.trim()) {
+      return reply.status(400).send({
+        error: { code: 'INVALID_ORDER_ID', message: 'order_id is required' },
+      });
+    }
+    try {
+      const result = await earnFromPayment({
+        userId: body.user_id,
+        paymentAmount,
+        orderId: body.order_id.trim(),
+        merchantId: body.merchant_id,
+        idempotencyKey: body.idempotency_key,
+      });
+      const status = result.skipped ? 200 : 201;
+      return reply.status(status).send(result);
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
+  });
+
   // GET /v1/paypoint/balance/:user_id
   fastify.get<{ Params: Record<typeof PARAM_USER_ID, string> }>(
     '/balance/:user_id',
@@ -48,9 +95,9 @@ export async function paypointRoutes(
 
   // GET /v1/paypoint/transactions
   fastify.get<{
-    Querystring: { user_id: string; limit?: string; cursor?: string };
+    Querystring: { user_id: string; limit?: string; cursor?: string; type?: string; source?: string };
   }>('/transactions', async (request, reply) => {
-    const { user_id, limit = '20', cursor } = request.query;
+    const { user_id, limit = '20', cursor, type, source } = request.query;
     const take = Math.min(Number.parseInt(limit, 10) || 20, 100);
     const account = await getAccountByUserId(user_id);
     if (!account) {
@@ -58,8 +105,13 @@ export async function paypointRoutes(
         error: { code: 'ACCOUNT_NOT_FOUND', message: 'Account not found' },
       });
     }
+    const where: Prisma.PaypointTransactionWhereInput = { accountId: account.id };
+    if (type?.trim()) where.type = type.trim();
+    if (source?.trim()) {
+      where.metadata = { path: ['source'], equals: source.trim() };
+    }
     const items = await prisma.paypointTransaction.findMany({
-      where: { accountId: account.id },
+      where,
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -69,15 +121,27 @@ export async function paypointRoutes(
     const nextCursor = hasMore ? list[list.length - 1]?.id ?? null : null;
     return reply.send({
       user_id: user_id,
-      items: list.map((t: { id: string; accountId: string; type: string; amount: { toString(): string }; orderId: string | null; receiptId: string | null; createdAt: Date }) => ({
-        tx_id: t.id,
-        account_id: t.accountId,
-        type: t.type,
-        amount: t.amount.toString(),
-        order_id: t.orderId ?? undefined,
-        receipt_id: t.receiptId ?? undefined,
-        created_at: t.createdAt.toISOString(),
-      })),
+      items: list.map(
+        (t: {
+          id: string;
+          accountId: string;
+          type: string;
+          amount: { toString(): string };
+          orderId: string | null;
+          receiptId: string | null;
+          metadata: unknown;
+          createdAt: Date;
+        }) => ({
+          tx_id: t.id,
+          account_id: t.accountId,
+          type: t.type,
+          amount: t.amount.toString(),
+          order_id: t.orderId ?? undefined,
+          receipt_id: t.receiptId ?? undefined,
+          metadata: t.metadata ?? undefined,
+          created_at: t.createdAt.toISOString(),
+        })
+      ),
       next_cursor: nextCursor,
     });
   });

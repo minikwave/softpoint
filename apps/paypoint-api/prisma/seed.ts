@@ -81,7 +81,91 @@ async function seedPaymentEarnPolicyIfNoneActive() {
   console.log('Seeded PAYMENT_EARN_POLICY (ACTIVE seed-2026.1) for Spend 적립');
 }
 
+const SEED_PRODUCTS = [
+  {
+    id: 'b0000001-0000-4000-8000-000000000001',
+    name: '카페 5,000원권',
+    description: '제휴 카페에서 사용',
+    productType: 'GIFTICON',
+    category: '카페/편의점',
+    faceValue: '5000',
+    pricePaypoint: '5000',
+  },
+  {
+    id: 'b0000002-0000-4000-8000-000000000002',
+    name: '식품 10,000원권',
+    description: '제휴 식품매장',
+    productType: 'ONLINE_VOUCHER',
+    category: '카페/편의점',
+    faceValue: '10000',
+    pricePaypoint: '10000',
+  },
+  {
+    id: 'b0000003-0000-4000-8000-000000000003',
+    name: '게임머니 3,000P',
+    description: 'MOCK 게임 크레딧',
+    productType: 'GAME_CREDIT',
+    category: '게임머니',
+    faceValue: '3000',
+    pricePaypoint: '3000',
+  },
+  {
+    id: 'b0000004-0000-4000-8000-000000000004',
+    name: 'AI 크레딧 5,000P',
+    description: 'AI 도구 사용권 (데모)',
+    productType: 'AI_USAGE_CREDIT',
+    category: 'AI 크레딧',
+    faceValue: '5000',
+    pricePaypoint: '5000',
+  },
+];
+
+async function seedDemoAccount() {
+  await prisma.paypointAccount.upsert({
+    where: { userId: 'U1' },
+    create: {
+      userId: 'U1',
+      balance: '100000',
+      reservedBalance: '0',
+      status: 'ACTIVE',
+    },
+    update: {
+      balance: '100000',
+    },
+  });
+  console.log('Seeded demo account U1 with 100,000 PP');
+}
+
+async function seedProducts() {
+  for (const p of SEED_PRODUCTS) {
+    await prisma.creditProduct.upsert({
+      where: { id: p.id },
+      create: {
+        id: p.id,
+        provider: 'MOCK',
+        productType: p.productType,
+        name: p.name,
+        description: p.description,
+        faceValue: p.faceValue,
+        pricePaypoint: p.pricePaypoint,
+        category: p.category,
+        status: 'ACTIVE',
+      },
+      update: {
+        name: p.name,
+        description: p.description,
+        faceValue: p.faceValue,
+        pricePaypoint: p.pricePaypoint,
+        category: p.category,
+        status: 'ACTIVE',
+      },
+    });
+  }
+  console.log(`Seeded ${SEED_PRODUCTS.length} credit_products`);
+}
+
 async function main() {
+  await seedDemoAccount();
   for (const p of SEED_PLACES) {
     await prisma.paypointEarnLocation.upsert({
       where: { id: p.id },
@@ -109,6 +193,7 @@ async function main() {
     });
   }
   console.log(`Seeded ${SEED_PLACES.length} paypoint_earn_locations`);
+  await seedProducts();
   await seedPaymentEarnPolicyIfNoneActive();
 }
 

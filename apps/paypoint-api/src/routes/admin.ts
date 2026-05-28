@@ -3,12 +3,26 @@ import { prisma } from '../lib/prisma.js';
 import { getAccountByUserId } from '../services/account.js';
 import { decimalToBigint } from '../services/account.js';
 import { issueCredit } from '../services/issue.js';
-import { writeAuditLog } from '../services/audit.js';
+import { writeAuditLog, listAuditLogs } from '../services/audit.js';
 import {
   authorizeConversion,
   settleConversion,
   failConversion,
 } from '../services/conversion.js';
+import {
+  createPolicyDraft,
+  submitPolicy,
+  approvePolicy,
+  activatePolicy,
+  listPolicies,
+} from '../services/policyWorkflow.js';
+import {
+  listExceptions,
+  enqueueException,
+  resolveException,
+} from '../services/exceptionsQueue.js';
+import { listReceiptsAdmin } from '../services/receipt.js';
+import { getReserveSummary } from '../services/reserve.js';
 
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
@@ -219,6 +233,215 @@ export async function adminRoutes(
     try {
       const result = await failConversion(request.params.id);
       return reply.status(200).send(result);
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
+  });
+
+  // GET /v1/admin/dashboard
+  fastify.get('/dashboard', async (_request, reply) => {
+    const reserve = await getReserveSummary();
+    const pendingConversions = await prisma.paypointConversion.count({
+      where: { status: { in: ['REQUESTED', 'AUTHORIZED', 'EXECUTING'] } },
+    });
+    return reply.send({
+      ...reserve,
+      pending_conversions: pendingConversions,
+    });
+  });
+
+  // GET /v1/admin/reserve
+  fastify.get('/reserve', async (_request, reply) => {
+    return reply.send(await getReserveSummary());
+  });
+
+  // GET /v1/admin/receipts
+  fastify.get<{
+    Querystring: { status?: string; user_id?: string; intent_type?: string; limit?: string };
+  }>('/receipts', async (request, reply) => {
+    const limit = Math.min(Number.parseInt(request.query.limit ?? '50', 10) || 50, 200);
+    const items = await listReceiptsAdmin({
+      status: request.query.status,
+      userId: request.query.user_id,
+      intentType: request.query.intent_type,
+      limit,
+    });
+    return reply.send({ items, count: items.length });
+  });
+
+  // GET /v1/admin/audit-logs
+  fastify.get<{
+    Querystring: {
+      actor_id?: string;
+      action?: string;
+      target_type?: string;
+      limit?: string;
+      cursor?: string;
+    };
+  }>('/audit-logs', async (request, reply) => {
+    const limit = Math.min(Number.parseInt(request.query.limit ?? '40', 10) || 40, 200);
+    const { items, nextCursor } = await listAuditLogs({
+      actorId: request.query.actor_id,
+      action: request.query.action,
+      targetType: request.query.target_type,
+      limit,
+      cursor: request.query.cursor,
+    });
+    return reply.send({
+      items: items.map((row) => ({
+        id: row.id,
+        actor_id: row.actorId,
+        actor_role: row.actorRole,
+        action: row.action,
+        target_type: row.targetType,
+        target_id: row.targetId,
+        before: row.before ?? undefined,
+        after: row.after ?? undefined,
+        request_id: row.requestId ?? undefined,
+        created_at: row.createdAt.toISOString(),
+      })),
+      next_cursor: nextCursor,
+    });
+  });
+
+  // GET /v1/admin/policies
+  fastify.get<{ Querystring: { policy_id?: string; status?: string; limit?: string } }>(
+    '/policies',
+    async (request, reply) => {
+      const limit = Math.min(Number.parseInt(request.query.limit ?? '50', 10) || 50, 200);
+      const items = await listPolicies({
+        policyId: request.query.policy_id,
+        status: request.query.status,
+        limit,
+      });
+      return reply.send({
+        items: items.map((p) => ({
+          policy_id: p.policyId,
+          version: p.version,
+          status: p.status,
+          policy_json: p.policyJson,
+          effective_from: p.effectiveFrom?.toISOString() ?? null,
+          updated_at: p.updatedAt.toISOString(),
+        })),
+        count: items.length,
+      });
+    }
+  );
+
+  fastify.post<{ Body: { policy_id: string; version: string; policy_json: object } }>(
+    '/policies/draft',
+    async (request, reply) => {
+      try {
+        const policy = await createPolicyDraft({
+          policyId: request.body.policy_id,
+          version: request.body.version,
+          policyJson: request.body.policy_json,
+        });
+        return reply.status(201).send({
+          policy_id: policy.policyId,
+          version: policy.version,
+          status: policy.status,
+        });
+      } catch (err) {
+        const e = toHttpError(err);
+        return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+      }
+    }
+  );
+
+  fastify.post<{ Params: { policyId: string; version: string } }>(
+    '/policies/:policyId/:version/submit',
+    async (request, reply) => {
+      const result = await submitPolicy(request.params.policyId, request.params.version);
+      if ('error' in result) {
+        return reply.status(404).send({ error: result.error });
+      }
+      return reply.send({ policy_id: result.policy.policyId, version: result.policy.version, status: result.policy.status });
+    }
+  );
+
+  fastify.post<{ Params: { policyId: string; version: string } }>(
+    '/policies/:policyId/:version/approve',
+    async (request, reply) => {
+      const result = await approvePolicy(request.params.policyId, request.params.version);
+      if ('error' in result) {
+        return reply.status(404).send({ error: result.error });
+      }
+      return reply.send({ policy_id: result.policy.policyId, version: result.policy.version, status: result.policy.status });
+    }
+  );
+
+  fastify.post<{ Params: { policyId: string; version: string } }>(
+    '/policies/:policyId/:version/activate',
+    async (request, reply) => {
+      const result = await activatePolicy(request.params.policyId, request.params.version);
+      if ('error' in result) {
+        return reply.status(404).send({ error: result.error });
+      }
+      return reply.send({ policy_id: result.policy.policyId, version: result.policy.version, status: result.policy.status });
+    }
+  );
+
+  fastify.get<{ Querystring: { status?: string; user_id?: string; limit?: string } }>(
+    '/exceptions',
+    async (request, reply) => {
+      const limit = Math.min(Number.parseInt(request.query.limit ?? '50', 10) || 50, 200);
+      const items = await listExceptions({
+        status: request.query.status,
+        userId: request.query.user_id,
+        limit,
+      });
+      return reply.send({
+        items: items.map((x) => ({
+          id: x.id,
+          reference_type: x.referenceType,
+          reference_id: x.referenceId,
+          user_id: x.userId,
+          title: x.title,
+          status: x.status,
+          created_at: x.createdAt.toISOString(),
+        })),
+        count: items.length,
+      });
+    }
+  );
+
+  fastify.post<{
+    Body: {
+      reference_type: string;
+      reference_id: string;
+      title: string;
+      user_id?: string;
+      detail?: object;
+    };
+  }>('/exceptions', async (request, reply) => {
+    try {
+      const row = await enqueueException({
+        referenceType: request.body.reference_type,
+        referenceId: request.body.reference_id,
+        title: request.body.title,
+        userId: request.body.user_id,
+        detail: request.body.detail,
+      });
+      return reply.status(201).send({ id: row.id, status: row.status });
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
+  });
+
+  fastify.post<{
+    Params: { id: string };
+    Body: { disposition: 'RESOLVED' | 'DISMISSED'; resolution_note?: string; resolved_by?: string };
+  }>('/exceptions/:id/resolve', async (request, reply) => {
+    try {
+      const row = await resolveException(request.params.id, {
+        disposition: request.body.disposition,
+        resolutionNote: request.body.resolution_note,
+        resolvedBy: request.body.resolved_by ?? 'operator',
+      });
+      return reply.send({ id: row.id, status: row.status });
     } catch (err) {
       const e = toHttpError(err);
       return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });

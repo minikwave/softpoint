@@ -27,7 +27,7 @@ export default function EarnHistory() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api.getTransactions(userId, 50)
+    api.getTransactions(userId, 50, undefined, 'ISSUE')
       .then(({ data, error: e }) => {
         if (cancelled) return;
         setLoading(false);
@@ -36,8 +36,7 @@ export default function EarnHistory() {
           setItems([]);
           return;
         }
-        const list = data?.items ?? [];
-        setItems(list.filter((t) => t.type === 'ISSUE'));
+        setItems(data?.items ?? []);
       });
     return () => { cancelled = true; };
   }, [userId]);

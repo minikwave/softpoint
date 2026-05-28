@@ -2,6 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { canSpend } from '@paypoint/domain';
 import { bigintToDecimal } from './account.js';
+import { appendLedgerEntry } from './ledger.js';
+import { createReceipt, transitionReceipt } from './receipt.js';
+import { applyPaymentEarnInSpendTx, type PaymentEarnInfo } from './paymentEarn.js';
 
 export interface SpendParams {
   userId: string;
@@ -15,18 +18,14 @@ export interface SpendResult {
   userId: string;
   amount: string;
   orderId: string;
+  paymentEarn?: PaymentEarnInfo | null;
 }
 
-/**
- * Spend credit: lock row (FOR UPDATE), check available balance, deduct, append transaction.
- * Atomic; prevents double spend.
- */
 export async function spendCredit(params: SpendParams): Promise<SpendResult> {
   const { userId, amount, orderId } = params;
   if (amount <= 0n) throw new Error('INVALID_AMOUNT');
 
-  const result = await prisma.$transaction(async (tx) => {
-    // Lock account row (SELECT FOR UPDATE) so concurrent spends serialize
+  return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<
       { id: string; balance: string; reserved_balance: string }[]
     >(Prisma.sql`
@@ -46,33 +45,54 @@ export async function spendCredit(params: SpendParams): Promise<SpendResult> {
       throw new Error('INSUFFICIENT_BALANCE');
     }
 
-    const newBalance = balance - amount;
+    const receipt = await createReceipt(tx, {
+      userId,
+      intentType: 'SPEND',
+      amount,
+      metadata: { order_id: orderId },
+    });
 
-    await tx.$executeRaw(Prisma.sql`
-      UPDATE paypoint_accounts
-      SET balance = ${newBalance.toString()}::numeric(30,0), updated_at = now()
-      WHERE id = ${row.id}::uuid
-    `);
+    await appendLedgerEntry(tx, {
+      accountId: row.id,
+      userId,
+      entryType: 'SPEND',
+      amount,
+      receiptId: receipt.id,
+      sourceType: 'spend',
+      sourceId: orderId,
+      idempotencyKey: `ledger:spend:${userId}:${orderId}`,
+    });
 
-    const receiptId = `RCP-${Date.now()}-${row.id.slice(0, 8)}`;
     const txRecord = await tx.paypointTransaction.create({
       data: {
         accountId: row.id,
         type: 'SPEND',
         amount: bigintToDecimal(amount),
         orderId,
-        receiptId,
+        receiptId: receipt.id,
       },
+    });
+
+    await transitionReceipt(tx, receipt.id, 'COMPLETED', 'COMPLETED', {
+      tx_id: txRecord.id,
+      order_id: orderId,
+    });
+
+    const paymentEarn = await applyPaymentEarnInSpendTx(tx, {
+      accountId: row.id,
+      userId,
+      spendAmount: amount,
+      orderId,
+      parentReceiptId: receipt.id,
     });
 
     return {
       txId: txRecord.id,
-      receiptId,
+      receiptId: receipt.id,
       userId,
       amount: amount.toString(),
       orderId,
+      paymentEarn,
     };
   });
-
-  return result;
 }

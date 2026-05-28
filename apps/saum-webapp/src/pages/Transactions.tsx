@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api, type TransactionItem } from '../api/client';
 
 const DEFAULT_USER = 'U1';
@@ -80,6 +81,7 @@ export default function Transactions() {
                     <th>유형</th>
                     <th>금액</th>
                     <th>주문 ID</th>
+                    <th>영수증</th>
                     <th>일시</th>
                   </tr>
                 </thead>
@@ -91,6 +93,15 @@ export default function Transactions() {
                       </td>
                       <td>{formatAmount(t.amount)} PP</td>
                       <td>{t.order_id ?? '—'}</td>
+                      <td>
+                        {t.receipt_id ? (
+                          <Link to={`/app/receipts/${t.receipt_id}`} className="place-map-link">
+                            {t.receipt_id.slice(0, 8)}…
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>{formatDate(t.created_at)}</td>
                     </tr>
                   ))}

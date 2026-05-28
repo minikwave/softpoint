@@ -24,6 +24,7 @@ packages/
 pnpm install
 cp .env.example .env   # set DATABASE_URL
 pnpm db:push           # create DB tables
+pnpm db:seed           # 적립 장소 + PAYMENT_EARN_POLICY 시드
 pnpm dev               # run API (http://localhost:3000)
 pnpm dev:webapp        # run WebApp (http://localhost:5173, proxies /v1 to API)
 pnpm dev:console       # run Operator Console (http://localhost:5174)
@@ -32,7 +33,8 @@ pnpm dev:console       # run Operator Console (http://localhost:5174)
 ## 랜딩 및 디앱
 
 - **랜딩** (`/`): "쌓음" 타이틀, **디앱 들어가기** → `/app`, **가게 관리** → `/app/store`
-- **디앱** (`/app`): 잔액, 내역, **적립 내역**, **적립 장소 지도**, **디지털 상품권 스토어**, 결제, 정산 옵션, 가게 (모두 PayPoint 엔진 API 연동)
+- **디앱** (`/app`): 잔액, 내역, **적립 내역**, **적립 장소**(API), **디지털 상품권 스토어**, 결제(**Spend 시 정책 기반 캐시백 적립**), 정산 옵션, 가게
+- **API**: `GET /earn-locations`, `POST /earn/payment`(PG 연동용), `POST /spend`(동일 TX 캐시백) — [적립 정책·기술 과정](./docs/PAYPOINT_EARN_POLICY_AND_FLOW.md)
 - **가게** (`/app/store`): 가맹점 ID, 정산 요청, **실제 정산금 유입 과정**(REQUESTED → AUTHORIZED → SETTLED), 정산 현황·전환 목록(**정산 완료 시 tx_hash·settlement_ref 표시**)
 - **관리자**: `pnpm dev:console` → http://localhost:5174 (사용자 검색, 수동 발급, 전환 승인/정산)
 - **빌드**: `pnpm install && pnpm run build` (전체 검증 완료)

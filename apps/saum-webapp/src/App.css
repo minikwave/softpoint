@@ -392,6 +392,27 @@
   margin-bottom: 0.75rem;
 }
 
+.detail-dl {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.35rem 1rem;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.detail-dl dt {
+  color: var(--text-muted);
+}
+
+.detail-dl dd {
+  margin: 0;
+}
+
+.mono-small {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
 .settled-info {
   font-size: 0.8rem;
   font-family: var(--font-mono);

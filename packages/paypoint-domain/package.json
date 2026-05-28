@@ -13,10 +13,12 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node --import tsx --test src/paymentEarn.test.ts",
     "clean": "rimraf dist"
   },
   "devDependencies": {
     "rimraf": "^5.0.5",
+    "tsx": "^4.19.0",
     "typescript": "~5.3.0"
   }
 }

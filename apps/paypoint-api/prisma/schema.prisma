@@ -17,7 +17,8 @@ model PaypointAccount {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  transactions PaypointTransaction[]
+  transactions  PaypointTransaction[]
+  ledgerEntries LedgerEntry[]
 
   @@map("paypoint_accounts")
 }
@@ -35,28 +36,152 @@ model PaypointTransaction {
   account PaypointAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
 
   @@index([accountId, createdAt])
+  @@index([receiptId])
   @@map("paypoint_transactions")
 }
 
+model LedgerEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  userId         String   @map("user_id") @db.Text
+  assetType      String   @default("PAYPOINT") @map("asset_type") @db.Text
+  entryType      String   @map("entry_type") @db.Text
+  amount         Decimal  @db.Decimal(30, 0)
+  balanceBefore  Decimal  @map("balance_before") @db.Decimal(30, 0)
+  balanceAfter   Decimal  @map("balance_after") @db.Decimal(30, 0)
+  receiptId      String?  @map("receipt_id") @db.Text
+  sourceType     String?  @map("source_type") @db.Text
+  sourceId       String?  @map("source_id") @db.Text
+  idempotencyKey String?  @map("idempotency_key") @db.Text
+  metadata       Json?    @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account PaypointAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@index([userId, createdAt])
+  @@index([receiptId])
+  @@unique([idempotencyKey])
+  @@map("ledger_entries")
+}
+
+model Receipt {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Text
+  merchantId      String?  @map("merchant_id") @db.Text
+  agentId         String?  @map("agent_id") @db.Text
+  intentType      String   @map("intent_type") @db.Text
+  status          String   @db.Text
+  amount          Decimal  @db.Decimal(30, 0)
+  assetType       String   @default("PAYPOINT") @map("asset_type") @db.Text
+  policyDecision  Json?    @map("policy_decision") @db.JsonB
+  settlementRoute Json?    @map("settlement_route") @db.JsonB
+  metadata        Json?    @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  events ReceiptEvent[]
+
+  @@index([userId, createdAt])
+  @@index([merchantId, createdAt])
+  @@index([status, createdAt])
+  @@map("receipts")
+}
+
+model ReceiptEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  receiptId String   @map("receipt_id") @db.Uuid
+  type      String   @db.Text
+  payload   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId, createdAt])
+  @@map("receipt_events")
+}
+
+model CreditProduct {
+  id            String   @id @default(uuid()) @db.Uuid
+  provider      String   @default("MOCK") @db.Text
+  productType   String   @map("product_type") @db.Text
+  name          String   @db.Text
+  description   String?  @db.Text
+  faceValue     Decimal  @map("face_value") @db.Decimal(30, 0)
+  pricePaypoint Decimal  @map("price_paypoint") @db.Decimal(30, 0)
+  category      String?  @db.Text
+  status        String   @default("ACTIVE") @db.Text
+  metadata      Json?    @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  redemptions CreditRedemption[]
+
+  @@index([productType, status])
+  @@index([category, status])
+  @@map("credit_products")
+}
+
+model CreditRedemption {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Text
+  productId     String    @map("product_id") @db.Uuid
+  receiptId     String?   @map("receipt_id") @db.Text
+  status        String    @db.Text
+  providerRef   String?   @map("provider_ref") @db.Text
+  codeDisplay   String?   @map("code_display") @db.Text
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  metadata      Json?     @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product CreditProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([productId, status])
+  @@map("credit_redemptions")
+}
+
 model PaypointPolicy {
-  policyId      String   @map("policy_id") @db.Text
-  version       String   @db.Text
-  policyJson    Json     @map("policy_json") @db.JsonB
+  policyId      String    @map("policy_id") @db.Text
+  version       String    @db.Text
+  policyJson    Json      @map("policy_json") @db.JsonB
+  status        String    @default("DRAFT") @db.Text
   effectiveFrom DateTime? @map("effective_from") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@id([policyId, version])
+  @@index([policyId, status])
   @@map("paypoint_policies")
+}
+
+model PaypointEarnLocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.Text
+  category  String   @db.Text
+  address   String   @db.Text
+  lat       Decimal  @db.Decimal(10, 7)
+  lng       Decimal  @db.Decimal(10, 7)
+  earnRate  String?  @map("earn_rate") @db.Text
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive, sortOrder])
+  @@map("paypoint_earn_locations")
 }
 
 model PaypointConversion {
   id            String   @id @default(uuid()) @db.Uuid
   userId        String   @map("user_id") @db.Text
-  type          String   @db.Text // USER_CASHOUT | MERCHANT_SETTLEMENT | TREASURY
+  type          String   @db.Text
   fromAmount    Decimal  @map("from_amount") @db.Decimal(30, 0)
   fromUnit      String   @default("PAYPOINT") @map("from_unit") @db.Text
   toAsset       String   @map("to_asset") @db.Text
   toChainId     BigInt?  @map("to_chain_id") @db.BigInt
-  status        String   @db.Text // REQUESTED | AUTHORIZED | EXECUTING | SETTLED | FAILED
+  status        String   @db.Text
   quote         Json?    @db.JsonB
   txHash        String?  @map("tx_hash") @db.Text
   settlementRef String?  @map("settlement_ref") @db.Text
@@ -65,6 +190,24 @@ model PaypointConversion {
 
   @@index([userId, status])
   @@map("paypoint_conversions")
+}
+
+model PaypointException {
+  id             String    @id @default(uuid()) @db.Uuid
+  referenceType  String    @map("reference_type") @db.Text
+  referenceId    String    @map("reference_id") @db.Text
+  userId         String?   @map("user_id") @db.Text
+  title          String    @db.Text
+  detail         Json?     @db.JsonB
+  status         String    @default("OPEN") @db.Text
+  resolutionNote String?   @map("resolution_note") @db.Text
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy     String?   @map("resolved_by") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@map("paypoint_exceptions")
 }
 
 model AuditLog {
@@ -84,7 +227,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// Idempotency: same key returns same result (doc 8.2, 23.2)
 model IdempotencyRecord {
   idempotencyKey String   @map("idempotency_key") @id @db.Text
   response       Json     @db.JsonB

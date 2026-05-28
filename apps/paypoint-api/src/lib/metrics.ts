@@ -40,6 +40,10 @@ export async function metricsText(): Promise<string> {
   return register.metrics();
 }
 
+export function metricsContentType(): string {
+  return register.contentType;
+}
+
 const UNKNOWN_ROUTE = 'unknown';
 
 function routeLabel(request: FastifyRequest): string {
