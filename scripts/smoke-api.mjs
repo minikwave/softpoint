@@ -74,6 +74,13 @@ if (activities.ok && Array.isArray(activities.json.items)) {
   fail('GET /v1/paypoint/earn-activities', activities);
 }
 
+const sandbox = await get('/v1/paypoint/partner/sandbox');
+if (sandbox.ok && sandbox.json.sandbox === true) {
+  pass('GET /v1/paypoint/partner/sandbox');
+} else {
+  fail('GET /v1/paypoint/partner/sandbox', sandbox);
+}
+
 const orderId = `SMOKE_${Date.now()}`;
 const issue = await post('/v1/paypoint/issue', {
   user_id: 'U1',

@@ -11,6 +11,7 @@ export default function AppMore() {
     { to: '/app/receipts', label: t('nav.receipts') },
     { to: '/app/earn-history', label: t('nav.earnHistory') },
     { to: '/app/earn-map', label: t('nav.places') },
+    { to: '/app/earn-payment', label: t('earnPayment.menu') },
     { to: '/app/market', label: t('nav.market') },
     { to: '/app/my-credits', label: t('nav.redemptions') },
     { to: '/app/conversion', label: t('nav.stable') },

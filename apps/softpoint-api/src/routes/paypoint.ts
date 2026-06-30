@@ -9,6 +9,7 @@ import { listEarnLocations } from '../services/earnLocations.js';
 import { listEarnActivities, earnFromActivity } from '../services/earnActivities.js';
 import { earnFromPayment } from '../services/paymentEarn.js';
 import { listMarketListings } from '../services/market.js';
+import { getPartnerSandboxInfo } from '../services/partner.js';
 import { prisma } from '../lib/prisma.js';
 
 const PARAM_USER_ID = 'user_id';
@@ -43,6 +44,7 @@ export async function paypointRoutes(
         'receipts',
         'conversion',
         'market-demo',
+        'partner-sandbox',
       ],
       paths: {
         user: '/v1/paypoint',
@@ -50,6 +52,11 @@ export async function paypointRoutes(
         health: '/health',
       },
     });
+  });
+
+  // GET /v1/paypoint/partner/sandbox — 온보딩·샌드박스 메타 (P1-2 스텁)
+  fastify.get('/partner/sandbox', async (_request, reply) => {
+    return reply.send(getPartnerSandboxInfo());
   });
 
   // GET /v1/paypoint/market/listings — demo marketplace (Phase E: real listings)

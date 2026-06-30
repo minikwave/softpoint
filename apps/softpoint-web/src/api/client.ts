@@ -45,6 +45,7 @@ export const api = {
   getConversion: (id: string) => softpoint.getConversion(id),
   getConversions: (userId: string, limit?: number) => softpoint.getConversions(userId, limit),
   getMarketListings: () => softpoint.getMarketListings(),
+  getPartnerSandbox: () => softpoint.getPartnerSandbox(),
 };
 
 export { createIdempotencyKey, spendIdempotencyKey, redeemIdempotencyKey };

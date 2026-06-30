@@ -13,7 +13,7 @@ export default function App() {
   return (
     <div className="app">
       <nav className="console-nav">
-        <span className="brand">Operator Console</span>
+        <span className="brand">SoftPoint Operator</span>
         <NavLink to="/dashboard" className={({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')}>
           대시보드
         </NavLink>

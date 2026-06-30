@@ -271,6 +271,15 @@ const en: TranslationDict = {
     user: 'User',
     created: 'Created',
   },
+  earnPayment: {
+    title: 'Payment earn demo',
+    lead: 'Simulate SP cashback after a card/PG payment per active policy.',
+    menu: 'Payment earn',
+    paymentAmount: 'Payment amount',
+    submit: 'Simulate earn',
+    success: 'Earned: +{amount} SP',
+    skipped: 'Skipped: {reason}',
+  },
   marketplace: {
     title: 'Points marketplace',
     lead: 'Browse listings from other users or list your SP for sale. (Demo)',

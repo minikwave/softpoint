@@ -271,6 +271,15 @@ const ko: TranslationDict = {
     user: '사용자',
     created: '생성',
   },
+  earnPayment: {
+    title: '결제 적립 체험',
+    lead: 'PG 결제 후 캐시백 정책에 따라 SP가 적립되는 흐름을 체험합니다.',
+    menu: '결제 적립',
+    paymentAmount: '결제 금액 (원)',
+    submit: '적립 시뮬레이션',
+    success: '적립 완료: +{amount} SP',
+    skipped: '적립 생략: {reason}',
+  },
   marketplace: {
     title: '포인트 마켓',
     lead: '다른 사용자가 올린 SP 상품을 둘러보거나, 내 SP를 판매 목록에 올릴 수 있어요. (데모)',

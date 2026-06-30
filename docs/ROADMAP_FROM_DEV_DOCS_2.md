@@ -51,18 +51,19 @@
 ### P0 — 프로덕션 안정화
 | ID | 내용 | 상태 |
 |----|------|------|
-| P0-1 | Railway `DATABASE_URL` → Supabase 프로덕션 URI | 확인 필요 |
-| P0-2 | `/health`, balance, redeem E2E 스모크 | 확인 필요 |
+| P0-1 | Railway `DATABASE_URL` → Postgres (Railway) 또는 Supabase | Railway Postgres + 시드 완료 |
+| P0-2 | `/health`, balance, redeem E2E 스모크 | `pnpm smoke:prod` |
 | P0-3 | 구 Vercel/Railway/Supabase 레거시 리소스 정리 | 수동 |
 
 ### P1 — 제품 완성도
 | ID | 내용 | 상태 |
 |----|------|------|
 | P1-1 | EarnMap·EarnActivity 실 SDK 연동 (Walk/광고) | 미구현 |
-| P1-2 | 파트너 샌드박스 키·셀프서비스 온보딩 | 미구현 |
-| P1-3 | operator-console SoftPoint 브랜딩·Vercel 배포 | SDK 연동 완료, 배포 미완 |
+| P1-2 | 파트너 샌드박스 키·셀프서비스 온보딩 | `/partner/sandbox` 스텁 API |
+| P1-3 | operator-console SoftPoint 브랜딩·Vercel 배포 | 브랜딩 완료 |
 | P1-4 | 마켓플레이스 실 거래·에스크로 API | 데모 listings API + UI |
-| P1-5 | OpenAPI 전면 동기화 + npm publish SDK | 부분 (SDK 패키지 완료) |
+| P1-5 | OpenAPI 전면 동기화 + npm publish SDK | 헤더·버전 갱신, SDK 패키지 완료 |
+| P1-6 | 결제 적립 UX (`/app/earn-payment`) | 완료 |
 
 ### Phase E — v1.5~v2 (백로그)
 | ID | 내용 |

@@ -48,7 +48,7 @@ async function main() {
     { prefix: '/v1/admin' }
   );
 
-  const port = Number(process.env['API_PORT']) || 3000;
+  const port = Number(process.env['PORT'] ?? process.env['API_PORT']) || 3000;
   const host = process.env['API_HOST'] ?? '0.0.0.0';
 
   await server.listen({ port, host });

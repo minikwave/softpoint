@@ -15,14 +15,30 @@
 
 ## Railway `DATABASE_URL`
 
+**옵션 A — Railway Postgres (현재 프로덕션)**  
+프로젝트에 `Postgres` 서비스가 있으면 `softpoint` 서비스에 `DATABASE_URL=${{Postgres.DATABASE_URL}}` 을 설정합니다.
+
+```powershell
+npx @railway/cli service link softpoint
+npx @railway/cli variables set DATABASE_URL='${{Postgres.DATABASE_URL}}'
+# Railway는 PORT를 자동 주입 — API는 PORT 우선, 로컬은 API_PORT=3000
+# 스키마·시드 (공개 URL은 Railway Postgres → Connect 탭)
+$env:DATABASE_URL = 'postgresql://...@reseau.proxy.rlwy.net:.../railway'
+pnpm db:push && pnpm db:seed
+npx @railway/cli up -d -m "deploy"
+```
+
+**옵션 B — Supabase Postgres**
+
 1. [Supabase Database settings](https://supabase.com/dashboard/project/cjqykyeqhoqlxnuzuatu/settings/database)에서 비밀번호 확인
 2. PowerShell:
 
 ```powershell
 $env:SUPABASE_DB_PASSWORD = 'YOUR_PASSWORD'
 $env:SUPABASE_PROJECT_REF = 'cjqykyeqhoqlxnuzuatu'
-.\scripts\set-railway-database-url.ps1 -Service softpoint-api
-npx @railway/cli up -s softpoint-api -d
+.\scripts\set-railway-database-url.ps1 -Service softpoint
+npx @railway/cli service link softpoint
+npx @railway/cli up -d
 ```
 
 ## DB 스키마·시드

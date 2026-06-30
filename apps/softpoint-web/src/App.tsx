@@ -21,6 +21,7 @@ import EarnHistory from './pages/EarnHistory';
 import EarnActivityAction from './pages/EarnActivityAction';
 import EarnMap from './pages/EarnMap';
 import Receipts from './pages/Receipts';
+import EarnPayment from './pages/EarnPayment';
 import Marketplace from './pages/Marketplace';
 import './App.css';
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="transactions" element={<Transactions />} />
         <Route path="receipts" element={<Receipts />} />
         <Route path="earn-history" element={<EarnHistory />} />
+        <Route path="earn-payment" element={<EarnPayment />} />
         <Route path="earn/:slug" element={<EarnActivityAction />} />
         <Route path="earn-map" element={<EarnMap />} />
         <Route path="vouchers" element={<VoucherStore />} />

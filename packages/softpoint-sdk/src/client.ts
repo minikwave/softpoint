@@ -168,6 +168,10 @@ export function createSoftPointClient(options: SoftPointClientOptions = {}) {
     getMarketListings() {
       return request<{ items: MarketListingItem[] }>('/v1/paypoint/market/listings');
     },
+
+    getPartnerSandbox() {
+      return request<Record<string, unknown>>('/v1/paypoint/partner/sandbox');
+    },
   };
 }
 

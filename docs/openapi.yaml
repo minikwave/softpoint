@@ -1,15 +1,14 @@
 openapi: 3.0.3
 info:
-  title: PayPoint Engine API
+  title: SoftPoint Engine API
   description: |
-    **쌓음(saum)** 사용자 앱·운영 콘솔이 호출하는 REST API 스켈레톤 명세입니다.
-    실제 동작은 `apps/paypoint-api` 소스가 기준이며, 필드명은 엔드포인트마다 **snake_case**와 **camelCase**가 혼용될 수 있습니다(구현 그대로 반영).
+    **SoftPoint** REST API — programmable credit engine for embeddable rewards.
+    Implementation source of truth: `apps/softpoint-api`. Field names may mix **snake_case** and **camelCase** per endpoint.
 
-    - `USER_JWT_SECRET`이 설정되면 `/v1/paypoint/*`에 `Authorization: Bearer <JWT>` 필요. 클레임 `sub`는 요청의 `user_id`와 일치해야 합니다.
-    - **`USER_JWT_SECRET`이 비어 있으면** 사용자 API는 **인증 없이** 호출되는 데모 모드입니다(스펙의 `UserBearer`는 운영 전제용).
-    - `ADMIN_API_KEY`가 설정되면 `/v1/admin/*`에 `x-admin-api-key` 또는 `Authorization: Bearer <key>` 필요.
-    - **`ADMIN_API_KEY` 미설정 시** Admin 경로는 로컬용으로 **키 없이** 열려 있을 수 있습니다.
-  version: 0.1.0
+    - With `USER_JWT_SECRET`, `/v1/paypoint/*` requires `Authorization: Bearer <JWT>` (`sub` = `user_id`).
+    - Without `USER_JWT_SECRET`, user API runs in open demo mode.
+    - With `ADMIN_API_KEY`, `/v1/admin/*` requires `x-admin-api-key` or Bearer.
+  version: 0.2.0
 
 servers:
   - url: http://localhost:3000

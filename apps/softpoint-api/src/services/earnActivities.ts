@@ -33,7 +33,7 @@ export async function earnFromActivity(params: {
     throw new Error('ACTIVITY_NOT_FOUND');
   }
   const amount = activity.rewardAmount;
-  if (amount == null || amount <= 0) {
+  if (amount == null || BigInt(amount.toString()) <= 0n) {
     throw new Error('ACTIVITY_NOT_REWARDABLE');
   }
 
