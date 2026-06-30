@@ -1,7 +1,4 @@
 {
   "framework": "vite",
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm --filter @softpoint/sdk run build && pnpm --filter softpoint-web run build",
-  "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

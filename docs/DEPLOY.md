@@ -32,12 +32,16 @@ npx @railway/cli up -s softpoint-api -d
 
 ## Vercel (웹)
 
+레포 **루트**에서 배포합니다 (`vercel.json`이 모노레포 빌드를 처리).
+
 ```bash
-cd apps/softpoint-web
+cd /path/to/softpoint
 npx vercel deploy --prod --yes \
-  --build-env VITE_API_URL=https://YOUR-RAILWAY-API.up.railway.app \
+  --build-env VITE_API_URL=https://softpoint-production.up.railway.app \
   --build-env VITE_REPO_URL=https://github.com/minikwave/softpoint
 ```
+
+Vercel 프로젝트 Root Directory는 **`.`**(레포 루트)로 두세요. `apps/softpoint-web`만 루트로 두면 `@softpoint/sdk` 워크스페이스를 찾지 못합니다.
 
 ## 검증
 
