@@ -8,8 +8,8 @@
 |------|------|
 | **Git** | https://github.com/minikwave/softpoint (`softpoint` remote만 사용) |
 | **Supabase** | 프로젝트 `softpoint`, ref `cjqykyeqhoqlxnuzuatu`, region `ap-northeast-1` |
-| **Railway** | 프로젝트 `softpoint` — https://railway.com/project/3744fafd-8a01-40f6-a7fc-25aa43fb6390 · 서비스 `softpoint-api` |
-| **Vercel** | 프로젝트 `softpoint-web` → `apps/softpoint-web` |
+| **Railway** | 프로젝트 `softpoint` — https://railway.com/project/3744fafd-8a01-40f6-a7fc-25aa43fb6390 · API `https://softpoint-production.up.railway.app` |
+| **Vercel** | 프로젝트 `softpoint-web` — `apps/softpoint-web` |
 
 레거시 `pay-saum` / `paypoint` / `saum-paypoint` 연동은 사용하지 않습니다.
 
