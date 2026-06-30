@@ -1,33 +1,19 @@
-# 제품·브랜드 가칭 명칭 정리
+# SoftPoint 제품·네이밍
 
-**2026년 4월** 기준. 법적 상표 확정 전 **가칭**이다.
-
-## 전제 (본 레포·문서·협업 시 기본값)
-
-**소비자 제품·앱 브랜드는 `saum`(쌓음)으로 고정한다.**
-
-- 문서·UI·커밋 메시지·이슈에서 사용자 앱을 가리킬 때 **기본 표기**: **쌓음**(한글) / **saum**(영문·슬러그).
-- **PayPoint**는 크레딧 엔진·API 레이어 이름으로 유지한다 (**PayPoint(saum)** = 엔진 + 쌓음 앱 생태계).
-- **`moum`(모음)은 제품명·패키지명·공식 브랜드로 사용하지 않는다.** 필요 시 일반어 “모으다/모아 쓰다” 수준의 설명만 허용한다.
-
-## 한 줄 표
-
-| 구분 | 가칭 | 비고 |
+| 구분 | 표기 | 용도 |
 |------|------|------|
-| **앱 브랜드(한글)** | **쌓음** | 랜딩·디앱 네비 (`Landing.tsx`, `App.tsx`) |
-| **앱·레포 슬러그** | **saum** | `paypoint-saum`, `saum-webapp`; 브라우저 탭 등 사용자 노출은 **쌓음 — PayPoint** |
-| **엔진·레이어** | **PayPoint** | SSOT API·Prisma·도메인 패키지 |
-| **「모음」** | 비공식 비유만 | “한 앱에 **모아** 쓴다”는 **경험 설명**에 한함. 제품명 대용 금지 |
+| **제품명** | **SoftPoint** | 마케팅·랜딩·디앱·문서 |
+| **슬러그** | **softpoint** | 레포 `minikwave/softpoint`, 패키지 `softpoint-*` |
+| **엔진 API 경로** | `/v1/paypoint/*` | 하위 호환·안정적 통합 surface (내부 테이블명도 `paypoint_*` 유지) |
+| **크레딧 단위** | PP (PayPoint 단위) | 잔액·상품 가격 표기 |
 
-## 혼동 방지
+## 레거시 (신규 작업 대상 아님)
 
-- **머지(통합)**: 여러 인센티브를 **한 잔액**으로 보이게 하는 **아키텍처/스토리** 용어. 브랜드명 아님.
-- **쌓음(saum)**: 위 머지 스토리를 **담는 앱**의 이름.
-- 향후 브랜드 변경 시: `saum-webapp`·`paypoint-saum`·문서·URL **전수 갱신**이 필요하다.
+- `ziptalk/pay-saum`, `minikwave/paypoint`
+- 브랜드 **쌓음(saum)** — SoftPoint 이전 세대
 
-## 참고 위치
+## 코드 위치
 
-- 협업 기본값: 루트 [`AGENTS.md`](../AGENTS.md)
-- UI: `apps/saum-webapp/src/pages/Landing.tsx`, `apps/saum-webapp/src/App.tsx`
-- 패키지: 루트 `package.json`, `apps/saum-webapp/package.json`
-- 문서: `README.md` 제목 `PayPoint (saum)`, 「제품 관점: 머지(통합)와 쌓음(saum)」
+- 마케팅: `apps/softpoint-web/src/pages/Landing.tsx`, `layouts/MarketingLayout.tsx`
+- 디앱: `apps/softpoint-web/src/layouts/DAppLayout.tsx`, `/app/*`
+- API: `apps/softpoint-api`
