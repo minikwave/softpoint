@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useI18n } from '../i18n/context';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import DAppBottomNav from '../components/DAppBottomNav';
 
 function navLink(to: string, label: string) {
   return (
@@ -37,6 +38,7 @@ export default function DAppLayout() {
       <main className="dapp-main">
         <Outlet />
       </main>
+      <DAppBottomNav />
     </div>
   );
 }

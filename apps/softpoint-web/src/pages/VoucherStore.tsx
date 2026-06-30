@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type CreditProductItem } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
+import { Card, FormField, Input, Select, Button, Alert, EmptyState } from '../design-system/components';
+import { formatAmount } from '../utils/format';
 
 const DEFAULT_USER = 'U1';
 
-function formatAmount(s: string): string {
-  const n = Number(s);
-  return Number.isNaN(n) ? s : n.toLocaleString('ko-KR');
-}
-
 export default function VoucherStore() {
+  const { t, locale } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [products, setProducts] = useState<CreditProductItem[]>([]);
   const [category, setCategory] = useState('');
@@ -62,7 +62,10 @@ export default function VoucherStore() {
     if (data) {
       setMessage({
         type: 'ok',
-        text: `교환 완료 — 코드: ${data.codeDisplay ?? '(발급됨)'}. 영수증 ${data.receiptId.slice(0, 8)}…`,
+        text: t('vouchers.redeemSuccess', {
+          code: data.codeDisplay ?? t('vouchers.issued'),
+          receipt: data.receiptId.slice(0, 8),
+        }),
       });
       fetchBalance();
     }
@@ -70,65 +73,65 @@ export default function VoucherStore() {
 
   return (
     <>
-      <h1 className="page-title">디지털 상품권 스토어</h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        SoftPoint(SP)로 기프티콘·게임머니·AI 크레딧을 교환합니다. <Link to="/app/my-credits">내 교환 내역</Link>
-      </p>
+      <PageIntro
+        title={t('vouchers.title')}
+        lead={
+          <>
+            {t('vouchers.lead')}{' '}
+            <Link to="/app/my-credits">{t('vouchers.myRedemptions')}</Link>
+          </>
+        }
+      />
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="form-group">
-          <label>사용자 ID</label>
-          <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} />
-        </div>
+      <Card>
+        <FormField label={t('forms.userId')}>
+          <Input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} />
+        </FormField>
         {balance != null && (
           <p style={{ margin: 0, fontSize: '0.9rem' }}>
-            사용 가능: <strong>{formatAmount(balance)} PP</strong>
+            {t('forms.available')}: <strong>{formatAmount(balance, locale)} {t('brand.points')}</strong>
           </p>
         )}
-        <div className="form-group" style={{ marginTop: '0.75rem' }}>
-          <label>카테고리</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">전체</option>
+        <FormField label={t('forms.category')}>
+          <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">{t('forms.categoryAll')}</option>
             {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
-          </select>
-        </div>
-      </div>
+          </Select>
+        </FormField>
+      </Card>
 
       {message && (
-        <div className={message.type === 'ok' ? 'msg-success' : 'msg-error'} style={{ marginBottom: '1rem' }}>
-          {message.text}
-        </div>
+        <Alert variant={message.type === 'ok' ? 'success' : 'error'}>{message.text}</Alert>
       )}
 
-      {loading && <p className="loading">상품 불러오는 중…</p>}
+      {loading && <p className="loading">{t('vouchers.loadingProducts')}</p>}
 
       {!loading && (
         <div className="voucher-grid">
           {products.map((p) => (
-            <div key={p.id} className="voucher-card card">
+            <Card key={p.id} className="voucher-card">
               <div className="voucher-name">{p.name}</div>
               <div className="voucher-desc">{p.description ?? p.product_type}</div>
-              <div className="voucher-price">{formatAmount(p.price_paypoint)} PP</div>
+              <div className="voucher-price">{formatAmount(p.price_paypoint, locale)} {t('brand.points')}</div>
               <div className="place-meta" style={{ marginBottom: '0.5rem' }}>
                 {p.category ?? p.product_type}
               </div>
-              <button
-                type="button"
-                className="btn btn-primary"
+              <Button
+                variant="primary"
                 disabled={purchasingId === p.id}
                 onClick={() => handleRedeem(p)}
               >
-                {purchasingId === p.id ? '교환 중…' : '교환하기'}
-              </button>
-            </div>
+                {purchasingId === p.id ? t('forms.redeeming') : t('vouchers.redeem')}
+              </Button>
+            </Card>
           ))}
         </div>
       )}
 
       {!loading && products.length === 0 && (
-        <p className="empty">상품이 없습니다. API 시드(<code>pnpm db:seed</code>)를 실행하세요.</p>
+        <EmptyState>{t('vouchers.empty')}</EmptyState>
       )}
     </>
   );

@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
+import { Card, FormField, Input, Select, Button, Alert } from '../design-system/components';
 
 const DEFAULT_USER = 'U1';
 
 export default function Conversion() {
+  const { t } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [amount, setAmount] = useState('');
   const [toAsset, setToAsset] = useState('USDC');
@@ -17,12 +21,12 @@ export default function Conversion() {
     setResult(null);
     const amt = amount.trim();
     if (!amt) {
-      setError('금액을 입력하세요.');
+      setError(t('forms.enterAmount'));
       return;
     }
     const n = Number(amt);
     if (Number.isNaN(n) || n <= 0) {
-      setError('금액은 0보다 큰 숫자여야 합니다.');
+      setError(t('forms.amountPositive'));
       return;
     }
     setLoading(true);
@@ -45,54 +49,46 @@ export default function Conversion() {
 
   return (
     <>
-      <h1 className="page-title">정산 옵션 (Stable)</h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        SP를 스테이블코인 정산으로 전환 요청합니다. 승인·실행은 운영 콘솔에서 처리됩니다.
-      </p>
+      <PageIntro title={t('conversion.title')} lead={t('conversion.lead')} />
 
-      <form onSubmit={handleSubmit} className="card">
-        <div className="form-group">
-          <label>사용자 ID</label>
-          <input
-            type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            placeholder="U1"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>전환 금액 (PP)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="예: 10000"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>정산 자산</label>
-          <select
-            value={toAsset}
-            onChange={(e) => setToAsset(e.target.value)}
-            style={{ maxWidth: 200, padding: '0.65rem 0.85rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
-          >
-            <option value="USDC">USDC</option>
-            <option value="USDT">USDT</option>
-          </select>
-        </div>
-        {error && <div className="msg-error">{error}</div>}
-        {result && (
-          <div className="msg-success">
-            요청 접수됨 — ID: {result.id.slice(0, 8)}…, 상태: {result.status}. 운영자 승인 후 정산됩니다.
-          </div>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? '요청 중…' : '전환 요청'}
-        </button>
-      </form>
+      <Card>
+        <form onSubmit={handleSubmit}>
+          <FormField label={t('forms.userId')}>
+            <Input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder={t('forms.userIdPlaceholder')}
+              required
+            />
+          </FormField>
+          <FormField label={t('forms.amountSp')}>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="10000"
+              required
+            />
+          </FormField>
+          <FormField label={t('forms.settlementAsset')}>
+            <Select value={toAsset} onChange={(e) => setToAsset(e.target.value)}>
+              <option value="USDC">USDC</option>
+              <option value="USDT">USDT</option>
+            </Select>
+          </FormField>
+          {error && <Alert variant="error">{error}</Alert>}
+          {result && (
+            <Alert variant="success">
+              {t('conversion.success', { id: result.id.slice(0, 8), status: result.status })}
+            </Alert>
+          )}
+          <Button type="submit" variant="primary" disabled={loading}>
+            {loading ? t('forms.requesting') : t('conversion.submit')}
+          </Button>
+        </form>
+      </Card>
     </>
   );
 }

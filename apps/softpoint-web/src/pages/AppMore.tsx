@@ -10,6 +10,7 @@ export default function AppMore() {
     { to: '/app/transactions', label: t('nav.history') },
     { to: '/app/earn-history', label: t('nav.earnHistory') },
     { to: '/app/earn-map', label: t('nav.places') },
+    { to: '/app/market', label: t('nav.market') },
     { to: '/app/my-credits', label: t('nav.redemptions') },
     { to: '/app/conversion', label: t('nav.stable') },
     { to: '/app/store', label: t('nav.store') },

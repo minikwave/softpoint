@@ -1,22 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type TransactionItem } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
+import { Card, CardLabel, Input, EmptyState } from '../design-system/components';
+import { formatAmount, formatDate } from '../utils/format';
 
 const DEFAULT_USER = 'U1';
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('ko-KR');
-  } catch {
-    return iso;
-  }
-}
-
-function formatAmount(s: string): string {
-  const n = Number(s);
-  if (Number.isNaN(n)) return s;
-  return n.toLocaleString('ko-KR');
-}
 
 function typeBadge(type: string): string {
   const t = type.toLowerCase();
@@ -28,6 +18,7 @@ function typeBadge(type: string): string {
 }
 
 export default function Transactions() {
+  const { t, locale } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,63 +44,63 @@ export default function Transactions() {
 
   return (
     <>
-      <h1 className="page-title">내역</h1>
+      <PageIntro title={t('transactions.title')} lead={t('transactions.lead')} />
 
-      <div className="card">
-        <label className="card-title">사용자 ID</label>
-        <input
+      <Card>
+        <CardLabel>{t('forms.userId')}</CardLabel>
+        <Input
           type="text"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="예: U1"
-          style={{ marginBottom: 0, padding: '0.65rem 0.85rem', width: '100%', maxWidth: '200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
+          placeholder={t('forms.userIdPlaceholder')}
+          style={{ maxWidth: '200px' }}
         />
-      </div>
+      </Card>
 
-      {loading && <p className="loading">조회 중…</p>}
+      {loading && <p className="loading">{t('forms.querying')}</p>}
       {error && <div className="msg-error">{error}</div>}
 
       {!loading && !error && (
-        <div className="card">
+        <Card>
           {items.length === 0 ? (
-            <p className="empty">거래 내역이 없습니다.</p>
+            <EmptyState>{t('transactions.empty')}</EmptyState>
           ) : (
             <div className="table-wrap">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>유형</th>
-                    <th>금액</th>
-                    <th>주문 ID</th>
-                    <th>영수증</th>
-                    <th>일시</th>
+                    <th>{t('transactions.colType')}</th>
+                    <th>{t('transactions.colAmount')}</th>
+                    <th>{t('transactions.colOrder')}</th>
+                    <th>{t('transactions.colReceipt')}</th>
+                    <th>{t('transactions.colDate')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((t) => (
-                    <tr key={t.tx_id}>
+                  {items.map((row) => (
+                    <tr key={row.tx_id}>
                       <td>
-                        <span className={`badge ${typeBadge(t.type)}`}>{t.type}</span>
+                        <span className={`badge ${typeBadge(row.type)}`}>{row.type}</span>
                       </td>
-                      <td>{formatAmount(t.amount)} PP</td>
-                      <td>{t.order_id ?? '—'}</td>
+                      <td>{formatAmount(row.amount, locale)} {t('brand.points')}</td>
+                      <td>{row.order_id ?? t('forms.noData')}</td>
                       <td>
-                        {t.receipt_id ? (
-                          <Link to={`/app/receipts/${t.receipt_id}`} className="place-map-link">
-                            {t.receipt_id.slice(0, 8)}…
+                        {row.receipt_id ? (
+                          <Link to={`/app/receipts/${row.receipt_id}`} className="place-map-link">
+                            {row.receipt_id.slice(0, 8)}…
                           </Link>
                         ) : (
-                          '—'
+                          t('forms.noData')
                         )}
                       </td>
-                      <td>{formatDate(t.created_at)}</td>
+                      <td>{formatDate(row.created_at, locale)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </>
   );

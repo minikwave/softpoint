@@ -20,6 +20,7 @@ import ReceiptDetail from './pages/ReceiptDetail';
 import EarnHistory from './pages/EarnHistory';
 import EarnActivityAction from './pages/EarnActivityAction';
 import EarnMap from './pages/EarnMap';
+import Marketplace from './pages/Marketplace';
 import './App.css';
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="earn/:slug" element={<EarnActivityAction />} />
         <Route path="earn-map" element={<EarnMap />} />
         <Route path="vouchers" element={<VoucherStore />} />
+        <Route path="market" element={<Marketplace />} />
         <Route path="my-credits" element={<MyRedemptions />} />
         <Route path="receipts/:id" element={<ReceiptDetail />} />
         <Route path="spend" element={<Spend />} />

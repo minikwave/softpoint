@@ -27,7 +27,7 @@ function resolve(dict: TranslationDict, key: string): string | undefined {
 type I18nContextValue = {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -42,9 +42,15 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string) => {
-      const value = resolve(dictionaries[locale], key) ?? resolve(dictionaries.en, key);
-      return value ?? key;
+    (key: string, vars?: Record<string, string | number>) => {
+      let value = resolve(dictionaries[locale], key) ?? resolve(dictionaries.en, key);
+      if (value == null) return key;
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+          value = value.replaceAll(`{${k}}`, String(v));
+        }
+      }
+      return value;
     },
     [locale]
   );

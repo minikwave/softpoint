@@ -1,3 +1,6 @@
+@import './design-system/tokens.css';
+@import './design-system/components.css';
+
 :root {
   --bg: #0d0f12;
   --surface: #161a20;

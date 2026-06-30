@@ -1,23 +1,14 @@
 import { useState, useEffect } from 'react';
 import { api, type TransactionItem } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
+import { Card, CardLabel, Input, EmptyState } from '../design-system/components';
+import { formatAmount, formatDate } from '../utils/format';
 
 const DEFAULT_USER = 'U1';
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('ko-KR');
-  } catch {
-    return iso;
-  }
-}
-
-function formatAmount(s: string): string {
-  const n = Number(s);
-  if (Number.isNaN(n)) return s;
-  return n.toLocaleString('ko-KR');
-}
-
 export default function EarnHistory() {
+  const { t, locale } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,52 +34,49 @@ export default function EarnHistory() {
 
   return (
     <>
-      <h1 className="page-title">적립 내역</h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        결제·프로모션·이벤트로 적립된 SP 내역입니다.
-      </p>
+      <PageIntro title={t('earnHistory.title')} lead={t('earnHistory.lead')} />
 
-      <div className="card">
-        <label className="card-title">사용자 ID</label>
-        <input
+      <Card>
+        <CardLabel>{t('forms.userId')}</CardLabel>
+        <Input
           type="text"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="예: U1"
-          style={{ marginBottom: 0, padding: '0.65rem 0.85rem', width: '100%', maxWidth: '200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
+          placeholder={t('forms.userIdPlaceholder')}
+          style={{ maxWidth: '200px' }}
         />
-      </div>
+      </Card>
 
-      {loading && <p className="loading">조회 중…</p>}
+      {loading && <p className="loading">{t('forms.querying')}</p>}
       {error && <div className="msg-error">{error}</div>}
 
       {!loading && !error && (
-        <div className="card">
+        <Card>
           {items.length === 0 ? (
-            <p className="empty">적립 내역이 없습니다. 가맹점 결제 또는 프로모션 참여 시 적립됩니다.</p>
+            <EmptyState>{t('earnHistory.empty')}</EmptyState>
           ) : (
             <div className="table-wrap">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>적립 금액</th>
-                    <th>관련 주문</th>
-                    <th>적립 일시</th>
+                    <th>{t('earnHistory.colAmount')}</th>
+                    <th>{t('transactions.colOrder')}</th>
+                    <th>{t('earnHistory.colDate')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((t) => (
-                    <tr key={t.tx_id}>
-                      <td className="earn-amount">+{formatAmount(t.amount)} PP</td>
-                      <td>{t.order_id ?? '—'}</td>
-                      <td>{formatDate(t.created_at)}</td>
+                  {items.map((row) => (
+                    <tr key={row.tx_id}>
+                      <td className="earn-amount">+{formatAmount(row.amount, locale)} {t('brand.points')}</td>
+                      <td>{row.order_id ?? t('forms.noData')}</td>
+                      <td>{formatDate(row.created_at, locale)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </>
   );

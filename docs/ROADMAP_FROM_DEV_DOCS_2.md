@@ -1,62 +1,78 @@
-# PayPoint(saum) 로드맵 — dev docs 2 기준
+# SoftPoint 로드맵 (2026-05 갱신)
 
-**기준**: `paypoint dev docs 2.txt`, 레포 실구현 스냅샷 (2026-05).
+**기준**: `minikwave/softpoint` 레포, Supabase `cjqykyeqhoqlxnuzuatu`, Railway API, Vercel `softpoint-web`.
 
-## 현재 위치
+## 제품 정체성
 
-- **있음**: 크레딧 계정·Issue/Spend·전환·정책 워크플로·예외 큐·적립 장소·결제 적립(`paymentEarn`)·소비자/가게 UI·운영 API(대부분).
-- **없음/약함**: Ledger/Receipt SSOT, CreditProduct/Redemption, EventOutbox, Worker, 대사·Reserve, 자동 테스트, JWT/Admin 훅(Phase A에서 보강), 콘솔 화면 일부 미연결(Phase A에서 보강).
+**SoftPoint** — 다른 프로덕트에 붙는 **보상·인센티브 크레딧 레이어**. 지갑·거래소 UI가 아니라 발행·적립·사용·교환·정산을 API·영수증·정책으로 추적합니다.
 
-## v1 정의 (dev docs 2 §15)
+포인트 단위: **SP**. API surface: `/v1/paypoint/*` (안정적 통합 경로).
 
-> 적립·사용·교환을 원장·영수증·정책·감사로 추적하는 Programmable Credit MVP
+## 제품·기술 특장점 (현재)
 
-**제품 정체성**: 포인트/크레딧/교환 (지갑·거래소·스왑 UI 금지). 스테이블·AI는 Adapter·내부 레일.
+| 특장점 | 설명 |
+|--------|------|
+| **임베드형 보상** | 파트너 앱에 `issue` / `earn` API만 연결해 미션·구매·광고 보상 |
+| **Ledger + Receipt SSOT** | 모든 쓰기가 영수증·원장으로 추적 — 운영·감사·정산 가능 |
+| **정책 기반 적립** | `PAYMENT_EARN_POLICY` + 활동 카탈로그 (`earn-activities`) |
+| **마케팅 ↔ D-App 분리** | B2B 연동 스토리(랜딩·온보딩)와 소비자 UX 분리 |
+| **한·영 i18n** | 마케팅·D-App 전 페이지 ko/en, 비개발자 친화 카피 |
+| **디자인 시스템 v1** | 토큰·공통 컴포넌트·모바일 하단 네비 |
 
-## 단계별 태스크
+## 현재 위치 (완료)
 
-### Phase B/C — Ledger·Receipt·교환 (2026-05 2차 완료)
+### 인프라·브랜드
+- [x] 독립 레포 `minikwave/softpoint`, saum/PayPoint UI 브랜드 제거
+- [x] Supabase 스키마·시드·`earn_activities`
+- [x] Railway API + Vercel 웹 (연동 문서: `docs/DEPLOY.md`)
 
+### API (softpoint-api)
+- [x] 계정, Issue/Spend, Ledger+Receipt, 결제 적립, 상품 교환, 전환
+- [x] Admin API, JWT/Admin 키, `/metrics`, `x-request-id`
+- [x] `GET/POST /v1/paypoint/earn-activities`
+
+### 웹 (softpoint-web)
+- [x] 마케팅: `/`, `/product`, `/integrate`, `/onboarding`, `/developers`
+- [x] D-App: 홈·모으기·쇼핑·결제·더보기 + 하단 네비(모바일)
+- [x] i18n 전 페이지, 디자인 시스템, 마케팅 푸터
+- [x] 포인트 마켓 데모 UI (`/app/market`)
+
+### 도메인·문서
+- [x] `@softpoint/domain`, `SOFTPOINT_PRODUCT_VISION.md`, `INTEGRATION_ONBOARDING.md`
+
+## 남은 투두
+
+### P0 — 프로덕션 안정화
 | ID | 내용 | 상태 |
 |----|------|------|
-| B1–B5 | LedgerEntry, Receipt, ReceiptEvent + issue/spend/redeem 경유 | 완료 |
-| B6–B8 | Receipt API, WebApp ReceiptDetail, Console Receipts | 완료 |
-| C1–C5 | CreditProduct/Redemption, credits API, VoucherStore redeem, 시드 | 완료 |
-| D1–D2 | Admin Dashboard, Reserve 스냅샷 API·화면 | 완료 |
+| P0-1 | Railway `DATABASE_URL` → Supabase 프로덕션 URI | 확인 필요 |
+| P0-2 | `/health`, balance, redeem E2E 스모크 | 확인 필요 |
+| P0-3 | 구 Vercel/Railway/Supabase 레거시 리소스 정리 | 수동 |
 
-### Phase A — 정합·운영 기반 (2026-05 1차 완료)
-
+### P1 — 제품 완성도
 | ID | 내용 | 상태 |
 |----|------|------|
-| A1 | 문서·OpenAPI·실코드 정합 | 부분 (`ROADMAP` 추가) |
-| A2 | operator-console: 정책·예외·감사 라우트 | 완료 |
-| A3 | API: `ADMIN_API_KEY` / `USER_JWT_SECRET` 훅 | 완료 |
-| A4 | `/metrics`, `x-request-id` | 완료 |
-| A5 | transactions `metadata` + `source` 필터 | 완료 |
-| A6 | domain `paymentEarn` 단위 테스트 | 완료 |
+| P1-1 | EarnMap·EarnActivity 실 SDK 연동 (Walk/광고) | 미구현 |
+| P1-2 | 파트너 샌드박스 키·셀프서비스 온보딩 | 미구현 |
+| P1-3 | operator-console SoftPoint 브랜딩·Vercel 배포 | 부분 |
+| P1-4 | 마켓플레이스 실 거래·에스크로 API | Phase E |
 
-### Phase B — Ledger + Receipt (T1–T8)
+### Phase E — v1.5~v2 (백로그)
+| ID | 내용 |
+|----|------|
+| E1 | EventOutbox + 비동기 워커 |
+| E2 | SettlementAdapter (온체인·PG) |
+| E3 | reconciliation-worker, Reserve 자동 대사 |
+| E4 | merchant-console, RBAC |
+| E5 | 포인트 마켓 P2P·재고 연동 |
 
-Prisma `LedgerEntry`, `Receipt`, `ReceiptEvent` → `ledger.ts` / `receipt.ts` → Issue/Spend/earn 경유 → Receipt API·화면.
+## v1 데모 시나리오
 
-### Phase C — 교환 v1 데모 (T9–T13)
-
-`CreditProduct`, `CreditRedemption`, `/v1/credits/*`, Store→redeem, Console Products/Redemptions.
-
-### Phase D — 운영 마감
-
-Dashboard, Reserve 스냅샷, Merchant 연동, 멱등 강제, RBAC 최소.
-
-### Phase E — v1.5~v2 (T14–T21)
-
-EventOutbox, SettlementAdapter, AgentBudget, reconciliation-worker, merchant-console.
-
-## v1 데모 시나리오 (§38)
-
-10,000P → 5,000P 기프티콘 redeem → Receipt/Ledger → My Credits → Console Receipts → Reserve 감소 확인.
+1. U1 잔액 조회 → 2. 기프티콘 redeem → 3. 영수증·내역 확인 → 4. Console에서 Receipt/Reserve 확인 → 5. (선택) 스테이블 전환 요청
 
 ## 참고
 
-- [PAYPOINT_EARN_POLICY_AND_FLOW.md](./PAYPOINT_EARN_POLICY_AND_FLOW.md)
-- [MVP_REMAINING_AND_RECONCILIATION.md](./MVP_REMAINING_AND_RECONCILIATION.md)
-- [CURRENT_STATE_UX_AND_FUTURE_FLOWS.md](./CURRENT_STATE_UX_AND_FUTURE_FLOWS.md)
+- [SOFTPOINT_PRODUCT_VISION.md](./SOFTPOINT_PRODUCT_VISION.md)
+- [INTEGRATION_ONBOARDING.md](./INTEGRATION_ONBOARDING.md)
+- [DEPLOY.md](./DEPLOY.md)
+- [PRODUCT_NAMING.md](./PRODUCT_NAMING.md)

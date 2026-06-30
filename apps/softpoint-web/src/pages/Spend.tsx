@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { api } from '../api/client';
 import { useI18n } from '../i18n/context';
 import PageIntro from '../components/PageIntro';
+import { Card, FormField, Input, Select, Button, Alert } from '../design-system/components';
+import { formatAmount } from '../utils/format';
 
 const DEFAULT_USER = 'U1';
 
 export default function Spend() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [amount, setAmount] = useState('');
   const [orderId, setOrderId] = useState('');
@@ -25,12 +27,12 @@ export default function Spend() {
     const amt = amount.trim();
     const oid = orderId.trim();
     if (!amt || !oid) {
-      setError('금액과 주문 ID를 입력하세요.');
+      setError(t('forms.enterAmountAndOrder'));
       return;
     }
     const n = Number(amt);
     if (Number.isNaN(n) || n <= 0) {
-      setError('금액은 0보다 큰 숫자여야 합니다.');
+      setError(t('forms.amountPositive'));
       return;
     }
     setLoading(true);
@@ -57,56 +59,61 @@ export default function Spend() {
 
   return (
     <>
-      <PageIntro title={t('nav.pay')} lead={t('landing.earnPayment')} />
+      <PageIntro title={t('spend.title')} lead={t('spend.lead')} />
 
-      <form onSubmit={handleSubmit} className="card">
-        <div className="form-group">
-          <label>사용자 ID</label>
-          <input
-            type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            placeholder="U1"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>금액 (PP)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="예: 2000"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>주문 ID</label>
-          <input
-            type="text"
-            value={orderId}
-            onChange={(e) => setOrderId(e.target.value)}
-            placeholder="예: ORDER_001"
-            required
-          />
-        </div>
-        {error && <div className="msg-error">{error}</div>}
-        {result && (
-          <div className="msg-success">
-            결제 완료 — 영수증 ID: {result.receiptId}, 차감: {Number(result.amount).toLocaleString('ko-KR')} PP
-            {result.paymentEarn && (
-              <div style={{ marginTop: '0.5rem' }}>
-                결제 적립: +{Number(result.paymentEarn.amount).toLocaleString('ko-KR')} PP
-                {' '}(정책 {result.paymentEarn.policyId} v{result.paymentEarn.policyVersion})
-              </div>
-            )}
-          </div>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? '처리 중…' : '결제하기'}
-        </button>
-      </form>
+      <Card>
+        <form onSubmit={handleSubmit}>
+          <FormField label={t('forms.userId')}>
+            <Input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder={t('forms.userIdPlaceholder')}
+              required
+            />
+          </FormField>
+          <FormField label={t('forms.amountSp')}>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="2000"
+              required
+            />
+          </FormField>
+          <FormField label={t('forms.orderId')}>
+            <Input
+              type="text"
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
+              placeholder={t('forms.orderIdPlaceholder')}
+              required
+            />
+          </FormField>
+          {error && <Alert variant="error">{error}</Alert>}
+          {result && (
+            <Alert variant="success">
+              {t('spend.success', {
+                receipt: result.receiptId,
+                amount: formatAmount(result.amount, locale),
+              })}
+              {result.paymentEarn && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {t('spend.earnBonus', {
+                    amount: formatAmount(result.paymentEarn.amount, locale),
+                    policy: result.paymentEarn.policyId,
+                    version: result.paymentEarn.policyVersion,
+                  })}
+                </div>
+              )}
+            </Alert>
+          )}
+          <Button type="submit" variant="primary" disabled={loading}>
+            {loading ? t('forms.processing') : t('spend.submit')}
+          </Button>
+        </form>
+      </Card>
     </>
   );
 }

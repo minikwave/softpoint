@@ -1,0 +1,60 @@
+/**
+ * SoftPoint design tokens — marketing + d-app 공통
+ */
+:root {
+  --sp-color-bg: #0a0c0f;
+  --sp-color-surface: #14181f;
+  --sp-color-surface-elevated: #1a1f28;
+  --sp-color-border: #2a313c;
+  --sp-color-border-subtle: #1f252d;
+  --sp-color-text: #eef1f6;
+  --sp-color-text-muted: #8b92a0;
+  --sp-color-text-subtle: #6b7280;
+  --sp-color-accent: #6ec4e8;
+  --sp-color-accent-hover: #8ed4f0;
+  --sp-color-accent-muted: rgba(110, 196, 232, 0.14);
+  --sp-color-success: #7bc47f;
+  --sp-color-success-muted: rgba(123, 196, 127, 0.15);
+  --sp-color-error: #e07a7a;
+  --sp-color-error-muted: rgba(224, 122, 122, 0.15);
+  --sp-color-warning: #e8c66e;
+
+  --sp-radius-sm: 6px;
+  --sp-radius-md: 10px;
+  --sp-radius-lg: 14px;
+  --sp-radius-full: 999px;
+
+  --sp-space-1: 0.25rem;
+  --sp-space-2: 0.5rem;
+  --sp-space-3: 0.75rem;
+  --sp-space-4: 1rem;
+  --sp-space-5: 1.25rem;
+  --sp-space-6: 1.5rem;
+  --sp-space-8: 2rem;
+  --sp-space-10: 2.5rem;
+
+  --sp-font-xs: 0.75rem;
+  --sp-font-sm: 0.875rem;
+  --sp-font-base: 1rem;
+  --sp-font-lg: 1.125rem;
+  --sp-font-xl: 1.375rem;
+  --sp-font-2xl: 1.75rem;
+  --sp-font-3xl: 2.25rem;
+
+  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --sp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --sp-max-content: 640px;
+  --sp-max-marketing: 1080px;
+
+  /* legacy aliases */
+  --bg: var(--sp-color-bg);
+  --surface: var(--sp-color-surface);
+  --border: var(--sp-color-border);
+  --text: var(--sp-color-text);
+  --text-muted: var(--sp-color-text-muted);
+  --accent: var(--sp-color-accent);
+  --accent-dim: var(--sp-color-accent-hover);
+  --success: var(--sp-color-success);
+  --error: var(--sp-color-error);
+  --radius: var(--sp-radius-md);
+}

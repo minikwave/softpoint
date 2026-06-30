@@ -78,7 +78,7 @@ export default function Conversions() {
 
   return (
     <>
-      <h1 className="page-title">전환 (PayPoint → Stable)</h1>
+      <h1 className="page-title">전환 (SP → Stable)</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
         REQUESTED → 승인 시 잔액 예약 → 정산 시 차감 확정. 실패 시 예약만 해제.
       </p>
@@ -134,7 +134,7 @@ export default function Conversions() {
                     <td style={{ fontSize: '0.8rem' }}>{c.id.slice(0, 8)}…</td>
                     <td>{c.user_id}</td>
                     <td>{c.type}</td>
-                    <td>{formatAmount(c.from_amount)} PP</td>
+                    <td>{formatAmount(c.from_amount)} SP</td>
                     <td>{c.to_asset}</td>
                     <td><span className={`badge ${statusBadge(c.status)}`}>{c.status}</span></td>
                     <td>{formatDate(c.created_at)}</td>
