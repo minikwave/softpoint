@@ -32,6 +32,7 @@ const ko: TranslationDict = {
     stable: '스테이블 정산',
     store: '가게',
     market: '포인트 마켓',
+    receipts: '영수증',
   },
   landing: {
     eyebrow: 'Reward & incentive layer',
@@ -121,6 +122,10 @@ const ko: TranslationDict = {
     auth: '인증',
     authDetail: 'USER_JWT_SECRET 설정 시 Bearer JWT (sub = user_id). ADMIN_API_KEY로 운영 API.',
     docsList: '문서',
+    sdkTitle: 'TypeScript SDK',
+    sdkLead: 'npm 워크스페이스 패키지 @softpoint/sdk로 REST API를 타입 안전하게 호출합니다. 웹·콘솔·파트너 백엔드에서 동일 클라이언트를 씁니다.',
+    sdkInstall: '설치 (모노레포)',
+    sdkExample: '빠른 예시',
   },
   app: {
     welcome: '안녕하세요',
@@ -138,6 +143,7 @@ const ko: TranslationDict = {
     quickPay: '결제하기',
     quickStable: '스테이블로 바꾸기',
     helpWhatIsSp: 'SP(SoftPoint)는 SoftPoint 앱과 제휴 서비스에서 쓰는 포인트입니다.',
+    apiOffline: 'API에 연결할 수 없습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.',
   },
   earnHub: {
     title: '포인트 모으기',
@@ -244,6 +250,12 @@ const ko: TranslationDict = {
     empty: '교환 내역이 없습니다.',
     code: '코드',
     viewReceipt: '영수증 보기',
+  },
+  receipts: {
+    title: '영수증 목록',
+    lead: '발행·사용·교환마다 생성된 영수증을 모아 봅니다.',
+    empty: '영수증이 없습니다.',
+    viewDetail: '상세 보기',
   },
   receipt: {
     title: '영수증 상세',

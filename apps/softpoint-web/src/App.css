@@ -363,6 +363,23 @@
   color: var(--text-muted);
 }
 
+.code-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0.75rem 0 1.25rem;
+}
+
+.code-block code {
+  white-space: pre;
+}
+
 .marketing-list {
   margin: 0;
   padding-left: 1.25rem;

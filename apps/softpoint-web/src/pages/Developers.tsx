@@ -5,15 +5,32 @@ import { repoBlob, repoRoot } from '../config/repo';
 
 const API_PREFIX = import.meta.env.VITE_API_URL?.trim() || '(set VITE_API_URL)';
 
+const SDK_EXAMPLE = `import { createSoftPointClient, spendIdempotencyKey } from '@softpoint/sdk';
+
+const sp = createSoftPointClient({
+  baseUrl: 'https://your-api.up.railway.app',
+  getAccessToken: () => process.env.SOFTPOINT_USER_JWT,
+});
+
+const { data: balance } = await sp.getBalance('U1');
+await sp.spend({
+  user_id: 'U1',
+  amount: '1000',
+  order_id: 'ORDER_001',
+  idempotency_key: spendIdempotencyKey('U1', 'ORDER_001'),
+});`;
+
 export default function Developers() {
   const { t } = useI18n();
 
   const endpoints = [
+    'GET /health',
+    'GET /v1/paypoint/info',
     'GET /v1/paypoint/balance/:user_id',
     'POST /v1/paypoint/issue',
     'POST /v1/paypoint/earn/payment',
     'POST /v1/paypoint/earn/activity',
-    'GET /v1/paypoint/earn-activities',
+    'GET /v1/paypoint/market/listings',
     'GET /v1/paypoint/credits/products',
     'POST /v1/paypoint/credits/redeem',
     'GET /v1/paypoint/receipts',
@@ -27,6 +44,13 @@ export default function Developers() {
       <p className="marketing-p">
         <a href={repoRoot()} target="_blank" rel="noreferrer">{repoRoot()}</a>
       </p>
+
+      <h2 className="marketing-h2">{t('developers.sdkTitle')}</h2>
+      <p className="marketing-p">{t('developers.sdkLead')}</p>
+      <p className="marketing-p"><strong>{t('developers.sdkInstall')}</strong></p>
+      <pre className="code-block"><code>pnpm add @softpoint/sdk --filter your-app</code></pre>
+      <p className="marketing-p"><strong>{t('developers.sdkExample')}</strong></p>
+      <pre className="code-block"><code>{SDK_EXAMPLE}</code></pre>
 
       <h2 className="marketing-h2">{t('developers.baseUrl')}</h2>
       <p className="marketing-p">
@@ -47,6 +71,11 @@ export default function Developers() {
 
       <h2 className="marketing-h2">{t('developers.docsList')}</h2>
       <ul className="marketing-list">
+        <li>
+          <a href={repoBlob('docs/INTEGRATION_SDK.md')} target="_blank" rel="noreferrer">
+            SDK integration guide
+          </a>
+        </li>
         <li>
           <a href={repoBlob('docs/INTEGRATION_ONBOARDING.md')} target="_blank" rel="noreferrer">
             Integration & onboarding

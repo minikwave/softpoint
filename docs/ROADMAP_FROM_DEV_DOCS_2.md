@@ -39,6 +39,12 @@
 
 ### 도메인·문서
 - [x] `@softpoint/domain`, `SOFTPOINT_PRODUCT_VISION.md`, `INTEGRATION_ONBOARDING.md`
+- [x] `@softpoint/sdk` — User + Admin TypeScript 클라이언트, 웹·콘솔 연동
+- [x] `docs/INTEGRATION_SDK.md`, `scripts/smoke-api.mjs`
+
+### API 확장 (2026-06)
+- [x] `GET /v1/paypoint/info` — SDK discovery
+- [x] `GET /v1/paypoint/market/listings` — 마켓 데모 데이터
 
 ## 남은 투두
 
@@ -54,8 +60,9 @@
 |----|------|------|
 | P1-1 | EarnMap·EarnActivity 실 SDK 연동 (Walk/광고) | 미구현 |
 | P1-2 | 파트너 샌드박스 키·셀프서비스 온보딩 | 미구현 |
-| P1-3 | operator-console SoftPoint 브랜딩·Vercel 배포 | 부분 |
-| P1-4 | 마켓플레이스 실 거래·에스크로 API | Phase E |
+| P1-3 | operator-console SoftPoint 브랜딩·Vercel 배포 | SDK 연동 완료, 배포 미완 |
+| P1-4 | 마켓플레이스 실 거래·에스크로 API | 데모 listings API + UI |
+| P1-5 | OpenAPI 전면 동기화 + npm publish SDK | 부분 (SDK 패키지 완료) |
 
 ### Phase E — v1.5~v2 (백로그)
 | ID | 내용 |

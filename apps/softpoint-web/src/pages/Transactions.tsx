@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type TransactionItem } from '../api/client';
 import { useI18n } from '../i18n/context';
 import PageIntro from '../components/PageIntro';
-import { Card, CardLabel, Input, EmptyState } from '../design-system/components';
+import { Card, EmptyState } from '../design-system/components';
 import { formatAmount, formatDate } from '../utils/format';
 
-const DEFAULT_USER = 'U1';
+import { useUserId } from '../hooks/useUserId';
+import UserIdField from '../components/UserIdField';
 
 function typeBadge(type: string): string {
   const t = type.toLowerCase();
@@ -19,7 +20,7 @@ function typeBadge(type: string): string {
 
 export default function Transactions() {
   const { t, locale } = useI18n();
-  const [userId, setUserId] = useState(DEFAULT_USER);
+  const { userId, setUserId } = useUserId();
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,14 +48,7 @@ export default function Transactions() {
       <PageIntro title={t('transactions.title')} lead={t('transactions.lead')} />
 
       <Card>
-        <CardLabel>{t('forms.userId')}</CardLabel>
-        <Input
-          type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          placeholder={t('forms.userIdPlaceholder')}
-          style={{ maxWidth: '200px' }}
-        />
+        <UserIdField value={userId} onChange={setUserId} />
       </Card>
 
       {loading && <p className="loading">{t('forms.querying')}</p>}

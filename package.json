@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:domain": "pnpm --filter @softpoint/domain run build",
+    "build:sdk": "pnpm --filter @softpoint/sdk run build",
     "build:api": "pnpm --filter softpoint-api run build",
     "build:web": "pnpm --filter softpoint-web run build",
     "build:console": "pnpm --filter operator-console run build",
@@ -18,7 +19,9 @@
     "db:migrate": "pnpm --filter softpoint-api run db:migrate",
     "db:push": "pnpm --filter softpoint-api run db:push",
     "db:seed": "pnpm --filter softpoint-api run db:seed",
-    "test": "pnpm --filter @softpoint/domain run test"
+    "test": "pnpm --filter @softpoint/domain run test",
+    "smoke": "node scripts/smoke-api.mjs",
+    "smoke:prod": "node scripts/smoke-api.mjs https://softpoint-production.up.railway.app"
   },
   "engines": {
     "node": ">=20"

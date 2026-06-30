@@ -8,6 +8,7 @@ export default function AppMore() {
   const links = [
     { to: '/app/balance', label: t('nav.balance') },
     { to: '/app/transactions', label: t('nav.history') },
+    { to: '/app/receipts', label: t('nav.receipts') },
     { to: '/app/earn-history', label: t('nav.earnHistory') },
     { to: '/app/earn-map', label: t('nav.places') },
     { to: '/app/market', label: t('nav.market') },

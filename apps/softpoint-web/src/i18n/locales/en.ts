@@ -32,6 +32,7 @@ const en: TranslationDict = {
     stable: 'Stable settlement',
     store: 'Merchant',
     market: 'Points market',
+    receipts: 'Receipts',
   },
   landing: {
     eyebrow: 'Reward & incentive layer',
@@ -121,6 +122,10 @@ const en: TranslationDict = {
     auth: 'Authentication',
     authDetail: 'With USER_JWT_SECRET: Bearer JWT (sub = user_id). ADMIN_API_KEY for operator APIs.',
     docsList: 'Documentation',
+    sdkTitle: 'TypeScript SDK',
+    sdkLead: 'Use the @softpoint/sdk workspace package for type-safe REST calls—the same client powers the web app, operator console, and partner backends.',
+    sdkInstall: 'Install (monorepo)',
+    sdkExample: 'Quick example',
   },
   app: {
     welcome: 'Welcome',
@@ -138,6 +143,7 @@ const en: TranslationDict = {
     quickPay: 'Pay with points',
     quickStable: 'Convert to stable',
     helpWhatIsSp: 'SP (SoftPoint) is the point used in SoftPoint and partner services.',
+    apiOffline: 'Cannot reach the API. Try again later or contact your administrator.',
   },
   earnHub: {
     title: 'Earn points',
@@ -244,6 +250,12 @@ const en: TranslationDict = {
     empty: 'No redemptions yet.',
     code: 'Code',
     viewReceipt: 'View receipt',
+  },
+  receipts: {
+    title: 'Receipts',
+    lead: 'All receipts from issues, spends, and redemptions in one place.',
+    empty: 'No receipts yet.',
+    viewDetail: 'View detail',
   },
   receipt: {
     title: 'Receipt detail',

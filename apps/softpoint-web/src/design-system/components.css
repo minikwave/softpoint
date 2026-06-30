@@ -256,6 +256,11 @@
   gap: var(--sp-space-3);
 }
 
+.sp-badge--default {
+  background: rgba(139, 146, 160, 0.25);
+  color: var(--sp-color-text-muted);
+}
+
 .market-demo-tag {
   align-self: flex-start;
   font-size: var(--sp-font-xs);

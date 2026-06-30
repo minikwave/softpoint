@@ -8,6 +8,7 @@ import { requestConversion, getConversion, listConversionsByUser } from '../serv
 import { listEarnLocations } from '../services/earnLocations.js';
 import { listEarnActivities, earnFromActivity } from '../services/earnActivities.js';
 import { earnFromPayment } from '../services/paymentEarn.js';
+import { listMarketListings } from '../services/market.js';
 import { prisma } from '../lib/prisma.js';
 
 const PARAM_USER_ID = 'user_id';
@@ -27,6 +28,35 @@ export async function paypointRoutes(
   fastify: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  // GET /v1/paypoint/info — SDK discovery & feature flags
+  fastify.get('/info', async (_request, reply) => {
+    return reply.send({
+      service: 'softpoint-api',
+      version: process.env['API_VERSION'] ?? '0.2.0',
+      features: [
+        'balance',
+        'issue',
+        'spend',
+        'earn-payment',
+        'earn-activity',
+        'credits-redeem',
+        'receipts',
+        'conversion',
+        'market-demo',
+      ],
+      paths: {
+        user: '/v1/paypoint',
+        admin: '/v1/admin',
+        health: '/health',
+      },
+    });
+  });
+
+  // GET /v1/paypoint/market/listings — demo marketplace (Phase E: real listings)
+  fastify.get('/market/listings', async (_request, reply) => {
+    return reply.send({ items: listMarketListings() });
+  });
+
   // GET /v1/paypoint/earn-locations
   fastify.get<{ Querystring: { category?: string } }>('/earn-locations', async (request, reply) => {
     const items = await listEarnLocations(request.query.category);
