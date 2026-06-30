@@ -52,7 +52,7 @@ async function main() {
   const host = process.env['API_HOST'] ?? '0.0.0.0';
 
   await server.listen({ port, host });
-  console.log(`PayPoint API listening at http://${host}:${port}`);
+  console.log(`SoftPoint API listening at http://${host}:${port}`);
 }
 
 main().catch((err) => {

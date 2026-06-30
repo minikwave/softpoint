@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
 
 const DEFAULT_USER = 'U1';
 
 export default function Spend() {
+  const { t } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [amount, setAmount] = useState('');
   const [orderId, setOrderId] = useState('');
@@ -54,7 +57,7 @@ export default function Spend() {
 
   return (
     <>
-      <h1 className="page-title">결제 (PayPoint 사용)</h1>
+      <PageIntro title={t('nav.pay')} lead={t('landing.earnPayment')} />
 
       <form onSubmit={handleSubmit} className="card">
         <div className="form-group">

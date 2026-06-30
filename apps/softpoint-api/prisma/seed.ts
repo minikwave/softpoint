@@ -36,7 +36,7 @@ const SEED_PLACES = [
   },
   {
     id: 'a0000004-0000-4000-8000-000000000004',
-    name: '책방쌓음 코리아',
+    name: '책방 소프트포인트',
     category: '서점',
     address: '서울 서초구 서초동 101',
     lat: '37.4833000',
@@ -164,6 +164,102 @@ async function seedProducts() {
   console.log(`Seeded ${SEED_PRODUCTS.length} credit_products`);
 }
 
+const SEED_EARN_ACTIVITIES = [
+  {
+    id: 'c0000001-0000-4000-8000-000000000001',
+    slug: 'payment-cashback',
+    activityType: 'PAYMENT',
+    nameKo: '결제 캐시백',
+    nameEn: 'Payment cashback',
+    descriptionKo: '제휴처 결제 시 SP가 적립됩니다.',
+    descriptionEn: 'Earn SP when you pay at partner merchants.',
+    rewardLabel: '정책에 따름',
+    rewardAmount: null as string | null,
+    sortOrder: 10,
+  },
+  {
+    id: 'c0000002-0000-4000-8000-000000000002',
+    slug: 'walk-to-earn',
+    activityType: 'WALK',
+    nameKo: '걷기 적립 (Walk to Earn)',
+    nameEn: 'Walk to Earn',
+    descriptionKo: '걸음 수를 연동하면 SP를 받을 수 있어요.',
+    descriptionEn: 'Connect step count to earn SP.',
+    rewardLabel: '최대 500 SP/일',
+    rewardAmount: '100',
+    sortOrder: 20,
+  },
+  {
+    id: 'c0000003-0000-4000-8000-000000000003',
+    slug: 'watch-ad',
+    activityType: 'AD_VIEW',
+    nameKo: '광고 보고 적립',
+    nameEn: 'Watch ad reward',
+    descriptionKo: '짧은 광고 시청 후 SP를 받습니다.',
+    descriptionEn: 'Watch a short ad to earn SP.',
+    rewardLabel: '50 SP',
+    rewardAmount: '50',
+    sortOrder: 30,
+  },
+  {
+    id: 'c0000004-0000-4000-8000-000000000004',
+    slug: 'partner-stores',
+    activityType: 'PARTNER_STORE',
+    nameKo: '제휴 매장 방문',
+    nameEn: 'Partner stores',
+    descriptionKo: '지도에서 제휴 매장을 찾아 적립하세요.',
+    descriptionEn: 'Find partner stores on the map.',
+    rewardLabel: '매장별 상이',
+    rewardAmount: null,
+    sortOrder: 40,
+  },
+  {
+    id: 'c0000005-0000-4000-8000-000000000005',
+    slug: 'referral',
+    activityType: 'REFERRAL',
+    nameKo: '친구 초대',
+    nameEn: 'Refer a friend',
+    descriptionKo: '친구가 가입하면 양쪽에 SP (준비 중).',
+    descriptionEn: 'Both earn SP when a friend joins (coming soon).',
+    rewardLabel: '1,000 SP',
+    rewardAmount: null,
+    sortOrder: 50,
+    status: 'COMING_SOON',
+  },
+];
+
+async function seedEarnActivities() {
+  for (const a of SEED_EARN_ACTIVITIES) {
+    await prisma.earnActivity.upsert({
+      where: { slug: a.slug },
+      create: {
+        id: a.id,
+        slug: a.slug,
+        activityType: a.activityType,
+        nameKo: a.nameKo,
+        nameEn: a.nameEn,
+        descriptionKo: a.descriptionKo,
+        descriptionEn: a.descriptionEn,
+        rewardLabel: a.rewardLabel,
+        rewardAmount: a.rewardAmount,
+        status: (a as { status?: string }).status ?? 'ACTIVE',
+        sortOrder: a.sortOrder,
+      },
+      update: {
+        nameKo: a.nameKo,
+        nameEn: a.nameEn,
+        descriptionKo: a.descriptionKo,
+        descriptionEn: a.descriptionEn,
+        rewardLabel: a.rewardLabel,
+        rewardAmount: a.rewardAmount,
+        status: (a as { status?: string }).status ?? 'ACTIVE',
+        sortOrder: a.sortOrder,
+      },
+    });
+  }
+  console.log(`Seeded ${SEED_EARN_ACTIVITIES.length} earn_activities`);
+}
+
 async function main() {
   await seedDemoAccount();
   for (const p of SEED_PLACES) {
@@ -195,6 +291,7 @@ async function main() {
   console.log(`Seeded ${SEED_PLACES.length} paypoint_earn_locations`);
   await seedProducts();
   await seedPaymentEarnPolicyIfNoneActive();
+  await seedEarnActivities();
 }
 
 main()

@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useI18n } from '../i18n/context';
+import PageIntro from '../components/PageIntro';
 
 const DEFAULT_USER = 'U1';
 
-function formatAmount(s: string): string {
+function formatAmount(s: string, locale: string): string {
   const n = Number(s);
   if (Number.isNaN(n)) return s;
-  return n.toLocaleString('ko-KR');
+  return n.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US');
 }
 
 export default function Balance() {
+  const { t, locale } = useI18n();
   const [userId, setUserId] = useState(DEFAULT_USER);
   const [balance, setBalance] = useState<{
-    user_id: string;
     balance: string;
     reserved_balance: string;
     available: string;
@@ -39,41 +41,40 @@ export default function Balance() {
 
   return (
     <>
-      <h1 className="page-title">잔액</h1>
+      <PageIntro title={t('nav.balance')} lead={t('app.helpWhatIsSp')} />
 
       <div className="card">
-        <label className="card-title">사용자 ID</label>
+        <label className="card-title">{t('app.userId')}</label>
         <input
           type="text"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
           onBlur={() => userId && fetchBalance()}
-          placeholder="예: U1"
-          style={{ marginBottom: 0, padding: '0.65rem 0.85rem', width: '100%', maxWidth: '200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}
+          placeholder="U1"
+          className="input-field"
         />
+        <p className="help-tip">{t('app.userIdHint')}</p>
       </div>
 
-      {loading && <p className="loading">조회 중…</p>}
+      {loading && <p className="loading">{t('app.loading')}</p>}
       {error && <div className="msg-error">{error}</div>}
 
       {!loading && balance && (
         <div className="card">
-          <p className="card-title">보유 PayPoint</p>
-          <p className="balance-value">{formatAmount(balance.available)} PP</p>
-          <p className="card-title" style={{ marginTop: '1rem' }}>예약 잔액</p>
-          <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-            {formatAmount(balance.reserved_balance)} PP
+          <p className="card-title">{t('app.yourPoints')}</p>
+          <p className="balance-value">
+            {formatAmount(balance.available, locale)} {t('brand.points')}
           </p>
-          <p className="card-title" style={{ marginTop: '0.5rem' }}>총 잔액</p>
-          <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-            {formatAmount(balance.balance)} PP
-          </p>
+          <p className="card-title" style={{ marginTop: '1rem' }}>{t('app.reserved')}</p>
+          <p className="mono-muted">{formatAmount(balance.reserved_balance, locale)} {t('brand.points')}</p>
+          <p className="card-title" style={{ marginTop: '0.5rem' }}>{t('app.total')}</p>
+          <p className="mono-muted">{formatAmount(balance.balance, locale)} {t('brand.points')}</p>
         </div>
       )}
 
       {!loading && !balance && !error && (
         <div className="card">
-          <p className="empty">계정이 없습니다. API에서 해당 사용자로 먼저 적립(issue)해 주세요.</p>
+          <p className="empty">{t('app.noAccount')}</p>
         </div>
       )}
     </>

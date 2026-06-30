@@ -227,6 +227,26 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model EarnActivity {
+  id            String   @id @default(uuid()) @db.Uuid
+  slug          String   @unique @db.Text
+  activityType  String   @map("activity_type") @db.Text
+  nameKo        String   @map("name_ko") @db.Text
+  nameEn        String   @map("name_en") @db.Text
+  descriptionKo String?  @map("description_ko") @db.Text
+  descriptionEn String?  @map("description_en") @db.Text
+  rewardLabel   String?  @map("reward_label") @db.Text
+  rewardAmount  Decimal? @map("reward_amount") @db.Decimal(30, 0)
+  status        String   @default("ACTIVE") @db.Text
+  sortOrder     Int      @default(0) @map("sort_order")
+  metadata      Json?    @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, sortOrder])
+  @@map("earn_activities")
+}
+
 model IdempotencyRecord {
   idempotencyKey String   @map("idempotency_key") @id @db.Text
   response       Json     @db.JsonB

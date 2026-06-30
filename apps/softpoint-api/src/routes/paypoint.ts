@@ -6,6 +6,7 @@ import { spendCredit } from '../services/spend.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
 import { requestConversion, getConversion, listConversionsByUser } from '../services/conversion.js';
 import { listEarnLocations } from '../services/earnLocations.js';
+import { listEarnActivities, earnFromActivity } from '../services/earnActivities.js';
 import { earnFromPayment } from '../services/paymentEarn.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -17,7 +18,7 @@ const PARAM_USER_ID = 'user_id';
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
   if (msg === 'INSUFFICIENT_BALANCE') return { statusCode: 402, code: 'INSUFFICIENT_BALANCE', message: msg };
-  if (msg === 'ACCOUNT_NOT_FOUND' || msg === 'CONVERSION_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
+  if (msg === 'ACCOUNT_NOT_FOUND' || msg === 'CONVERSION_NOT_FOUND' || msg === 'ACTIVITY_NOT_FOUND') return { statusCode: 404, code: msg, message: msg };
   if (msg === 'INVALID_AMOUNT' || msg.startsWith('INVALID_') || msg === 'CONVERSION_INVALID_STATUS') return { statusCode: 400, code: msg, message: msg };
   return { statusCode: 500, code: 'INTERNAL_ERROR', message: 'Internal server error' };
 }
@@ -30,6 +31,47 @@ export async function paypointRoutes(
   fastify.get<{ Querystring: { category?: string } }>('/earn-locations', async (request, reply) => {
     const items = await listEarnLocations(request.query.category);
     return reply.send({ items });
+  });
+
+  // GET /v1/paypoint/earn-activities — Walk/광고/미션 등 활동형 적립 카탈로그
+  fastify.get('/earn-activities', async (_request, reply) => {
+    const items = await listEarnActivities();
+    return reply.send({ items });
+  });
+
+  // POST /v1/paypoint/earn/activity — 파트너·앱에서 활동 완료 시 SP 지급
+  fastify.post<{
+    Body: {
+      user_id: string;
+      activity_slug: string;
+      idempotency_key?: string;
+      proof?: Record<string, unknown>;
+    };
+  }>('/earn/activity', async (request, reply) => {
+    const body = request.body;
+    if (!body.user_id?.trim() || !body.activity_slug?.trim()) {
+      return reply.status(400).send({
+        error: { code: 'INVALID_REQUEST', message: 'user_id and activity_slug required' },
+      });
+    }
+    const idempotencyKey = body.idempotency_key?.trim();
+    if (idempotencyKey) {
+      const cached = await getIdempotentResponse(idempotencyKey);
+      if (cached) return reply.send(cached);
+    }
+    try {
+      const result = await earnFromActivity({
+        userId: body.user_id.trim(),
+        activitySlug: body.activity_slug.trim(),
+        idempotencyKey,
+        proof: body.proof,
+      });
+      if (idempotencyKey) await setIdempotentResponse(idempotencyKey, result);
+      return reply.send(result);
+    } catch (err) {
+      const e = toHttpError(err);
+      return reply.status(e.statusCode).send({ error: { code: e.code, message: e.message } });
+    }
   });
 
   // POST /v1/paypoint/earn/payment — 결제 완료 후 적립 (PG/POS 연동)

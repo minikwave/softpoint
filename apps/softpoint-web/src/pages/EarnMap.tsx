@@ -42,7 +42,7 @@ export default function EarnMap() {
     <>
       <h1 className="page-title">적립 가능 장소</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        PayPoint를 적립할 수 있는 가맹점을 찾아보세요. (API 연동)
+        SP를 적립할 수 있는 가맹점을 찾아보세요.
       </p>
 
       <div className="card" style={{ marginBottom: '1rem' }}>

@@ -47,7 +47,7 @@ export default function Conversion() {
     <>
       <h1 className="page-title">정산 옵션 (Stable)</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        PayPoint를 스테이블코인 정산으로 전환 요청합니다. 승인·실행은 운영자 콘솔에서 처리됩니다.
+        SP를 스테이블코인 정산으로 전환 요청합니다. 승인·실행은 운영 콘솔에서 처리됩니다.
       </p>
 
       <form onSubmit={handleSubmit} className="card">

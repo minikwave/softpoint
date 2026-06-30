@@ -46,6 +46,27 @@ export interface PaymentEarnRes {
   policyVersion: string;
 }
 
+export interface IssueRes {
+  accountId: string;
+  user_id: string;
+  amount: string;
+  tx_id: string;
+  receipt_id: string;
+}
+
+export interface EarnActivityItem {
+  id: string;
+  slug: string;
+  activity_type: string;
+  name_ko: string;
+  name_en: string;
+  description_ko?: string | null;
+  description_en?: string | null;
+  reward_label?: string | null;
+  reward_amount?: string | null;
+  status: string;
+}
+
 export interface CreditProductItem {
   id: string;
   provider: string;
@@ -202,6 +223,22 @@ export const api = {
     const params = new URLSearchParams({ user_id: userId });
     if (limit != null) params.set('limit', String(limit));
     return request<ConversionsListRes>(`/v1/paypoint/conversions?${params}`);
+  },
+
+  getEarnActivities() {
+    return request<{ items: EarnActivityItem[] }>('/v1/paypoint/earn-activities');
+  },
+
+  earnActivity(body: {
+    user_id: string;
+    activity_slug: string;
+    idempotency_key?: string;
+    proof?: Record<string, unknown>;
+  }) {
+    return request<IssueRes>('/v1/paypoint/earn/activity', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
 
   getCreditProducts(category?: string) {

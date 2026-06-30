@@ -45,7 +45,7 @@ export default function EarnHistory() {
     <>
       <h1 className="page-title">적립 내역</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        결제·프로모션·이벤트로 적립된 PayPoint 내역입니다.
+        결제·프로모션·이벤트로 적립된 SP 내역입니다.
       </p>
 
       <div className="card">

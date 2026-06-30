@@ -1,51 +1,98 @@
 import { Link } from 'react-router-dom';
+import { useI18n } from '../i18n/context';
 
 export default function Landing() {
+  const { t } = useI18n();
+
   return (
     <main className="landing-hero">
       <div className="landing-hero-glow" aria-hidden />
       <div className="landing-hero-inner">
-        <p className="landing-eyebrow">Programmable Credit</p>
+        <p className="landing-eyebrow">{t('landing.eyebrow')}</p>
         <h1 className="landing-hero-title">
-          적립·사용·교환을
+          {t('landing.heroTitle')}
           <br />
-          <span className="landing-gradient">한 엔진</span>으로
+          <span className="landing-gradient">{t('landing.heroTitleAccent')}</span>
         </h1>
-        <p className="landing-hero-lead">
-          SoftPoint는 원장·영수증·정책·감사로 크레딧 흐름을 추적하는 독립 프로덕트입니다.
-          소비자 디앱과 REST API로 다른 제품에 임베드할 수 있습니다.
-        </p>
+        <p className="landing-hero-lead">{t('landing.heroLead')}</p>
         <div className="landing-hero-actions">
-          <Link to="/app" className="landing-btn landing-btn-primary">
-            디앱 열기
+          <Link to="/app/home" className="landing-btn landing-btn-primary">
+            {t('landing.ctaApp')}
           </Link>
-          <Link to="/developers" className="landing-btn landing-btn-secondary">
-            API · 연동
+          <Link to="/integrate" className="landing-btn landing-btn-secondary">
+            {t('landing.ctaIntegrate')}
           </Link>
         </div>
-        <ul className="landing-features" aria-label="핵심 기능">
-          <li>
-            <strong>Ledger + Receipt</strong>
-            <span>모든 발행·사용·교환의 SSOT</span>
-          </li>
-          <li>
-            <strong>Policy-driven earn</strong>
-            <span>결제 적립·한도·버전 정책</span>
-          </li>
-          <li>
-            <strong>Operator-ready</strong>
-            <span>대시보드·예외·감사·준비금</span>
-          </li>
-        </ul>
-        <p className="landing-footnote">
-          <Link to="/product">제품 개요</Link>
-          {' · '}
-          저장소{' '}
-          <a href="https://github.com/minikwave/softpoint" target="_blank" rel="noreferrer">
-            minikwave/softpoint
-          </a>
-        </p>
       </div>
+
+      <section className="landing-section" aria-labelledby="why-softpoint">
+        <div className="landing-section-inner">
+          <h2 id="why-softpoint" className="landing-section-title">
+            {t('landing.sectionRewardsTitle')}
+          </h2>
+          <p className="landing-section-lead">{t('landing.sectionRewardsLead')}</p>
+          <div className="landing-card-grid">
+            <article className="landing-card">
+              <h3>{t('landing.reward1Title')}</h3>
+              <p>{t('landing.reward1Desc')}</p>
+            </article>
+            <article className="landing-card">
+              <h3>{t('landing.reward2Title')}</h3>
+              <p>{t('landing.reward2Desc')}</p>
+            </article>
+            <article className="landing-card">
+              <h3>{t('landing.reward3Title')}</h3>
+              <p>{t('landing.reward3Desc')}</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-section landing-section-alt" aria-labelledby="earn-use">
+        <div className="landing-section-inner landing-two-col">
+          <div>
+            <h2 id="earn-use" className="landing-section-title">
+              {t('landing.sectionEarnTitle')}
+            </h2>
+            <ul className="landing-checklist">
+              <li>{t('landing.earnPayment')}</li>
+              <li>{t('landing.earnWalk')}</li>
+              <li>{t('landing.earnAd')}</li>
+              <li>{t('landing.earnPartner')}</li>
+            </ul>
+          </div>
+          <div>
+            <h2 className="landing-section-title">{t('landing.sectionUseTitle')}</h2>
+            <ul className="landing-checklist">
+              <li>{t('landing.useVoucher')}</li>
+              <li>{t('landing.useMarket')}</li>
+              <li>{t('landing.useStable')}</li>
+              <li>{t('landing.usePay')}</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-section" aria-labelledby="integrate-steps">
+        <div className="landing-section-inner landing-integrate-band">
+          <h2 id="integrate-steps" className="landing-section-title">
+            {t('landing.sectionIntegrateTitle')}
+          </h2>
+          <ol className="landing-steps">
+            <li>{t('landing.integrateStep1')}</li>
+            <li>{t('landing.integrateStep2')}</li>
+            <li>{t('landing.integrateStep3')}</li>
+          </ol>
+          <div className="landing-hero-actions">
+            <Link to="/onboarding" className="landing-btn landing-btn-primary">
+              {t('nav.onboarding')}
+            </Link>
+            <Link to="/product" className="landing-btn landing-btn-secondary">
+              {t('landing.footnote')}
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

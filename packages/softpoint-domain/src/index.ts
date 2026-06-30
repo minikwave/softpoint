@@ -1,6 +1,6 @@
 /**
  * @softpoint/domain
- * PayPoint (saum) core types and invariants.
+ * SoftPoint core types and invariants.
  * No DB or HTTP here — engine/app layer uses this.
  */
 

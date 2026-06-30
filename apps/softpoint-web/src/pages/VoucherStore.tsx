@@ -72,7 +72,7 @@ export default function VoucherStore() {
     <>
       <h1 className="page-title">디지털 상품권 스토어</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        PayPoint로 기프티콘·게임머니·AI 크레딧을 교환합니다. <Link to="/app/my-credits">내 교환 내역</Link>
+        SoftPoint(SP)로 기프티콘·게임머니·AI 크레딧을 교환합니다. <Link to="/app/my-credits">내 교환 내역</Link>
       </p>
 
       <div className="card" style={{ marginBottom: '1rem' }}>
