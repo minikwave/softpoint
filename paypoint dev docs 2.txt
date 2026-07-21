@@ -1,0 +1,1785 @@
+ChatGPT
+
+
+
+
+
+paypoint.zip
+ZIP 아카이브
+해당 프로젝트는 어떤 프로젝트이고, 어떤 식으로 보강하고 확장해야 더 좋아질 수 있는지 알려주세요
+
+이번에는 “실제 구현 블록” 쪽으로 더 내려가겠습니다. 기존 MVP에 바로 붙일 수 있는 도메인 패키지 구조, 서비스 함수 책임, API DTO, 테스트 케이스, 작업 티켓 형태로 정리하겠습니다.
+
+1m 23s 동안 생각함
+좋습니다. 실제 paypoint.zip 기준으로 확인하면 현재 구조는 꽤 명확합니다.
+
+현재 실제 구조는 다음과 같습니다.
+
+paypoint/
+  apps/
+    paypoint-api/
+      src/
+        index.ts
+        lib/
+          adminAuth.ts
+          metrics.ts
+          prisma.ts
+          userJwt.ts
+        routes/
+          admin.ts
+          paypoint.ts
+        services/
+          account.ts
+          audit.ts
+          conversion.ts
+          exceptionsQueue.ts
+          idempotency.ts
+          issue.ts
+          policyWorkflow.ts
+          spend.ts
+      prisma/
+        schema.prisma
+
+    saum-webapp/
+      src/
+        pages/
+          Landing.tsx
+          Product.tsx
+          Balance.tsx
+          Spend.tsx
+          Store.tsx
+          Conversion.tsx
+          Transactions.tsx
+          EarnMap.tsx
+          EarnHistory.tsx
+          Developers.tsx
+
+    operator-console/
+      src/
+        pages/
+          Users.tsx
+          Account.tsx
+          Conversions.tsx
+          Exceptions.tsx
+          Policies.tsx
+          AuditLogs.tsx
+
+  packages/
+    paypoint-domain/
+      src/
+        index.ts
+        invariants.ts
+        paymentEarn.ts
+        types.ts
+
+  docs/
+    openapi.yaml
+    DEPLOY.md
+    CURRENT_STATE_UX_AND_FUTURE_FLOWS.md
+    MVP_REMAINING_AND_RECONCILIATION.md
+    PAYPOINT_EARN_POLICY_AND_FLOW.md
+    POSTGRES_TRANSACTION_OPS.md
+    PRODUCT_NAMING.md
+즉, 이미 있는 것은:
+
+사용자 앱
+운영자 콘솔
+API 서버
+도메인 패키지
+Prisma/Postgres
+정책 관리
+감사 로그
+전환 요청
+예외 큐
+멱등성
+Prometheus metrics
+Earn location
+입니다.
+
+여기서 다음 확장은 “새 프로젝트”가 아니라 기존 구조 위에 붙이는 식이 맞습니다.
+
+1. 지금 코드베이스의 실제 해석
+현재 PayPoint는 이미 다음 4개 시스템의 초기형입니다.
+
+1. 포인트 계정 시스템
+2. 포인트 거래 시스템
+3. 운영 정책 시스템
+4. 전환/정산 요청 시스템
+하지만 아직 부족한 것은 다음입니다.
+
+1. 진짜 원장 Ledger
+2. Receipt 중심 결제 추적
+3. 상품권/게임머니/AI 크레딧 교환 모듈
+4. Merchant/Creator 정산 콘솔
+5. Event Outbox/Webhook
+6. Agent Budget/Delegated Spend
+7. Reserve/Reconciliation Dashboard
+2. 확장 후 목표 구조
+현재:
+
+PaypointAccount
+PaypointTransaction
+PaypointPolicy
+PaypointConversion
+AuditLog
+IdempotencyRecord
+EarnLocation
+Exception
+확장 후:
+
+PaypointAccount
+PaypointTransaction      # 표시/호환용
+LedgerEntry              # 진짜 원장
+Receipt                  # 결제 행동 단위
+ReceiptEvent             # 상태 변경 이력
+CreditProduct            # 기프티콘/상품권/게임머니/AI 크레딧
+CreditRedemption         # 교환/발급 내역
+Merchant                 # 가맹점/크리에이터
+MerchantSettlement       # 정산 묶음
+AgentProfile             # AI/자동화 주체
+AgentBudget              # 에이전트 사용 한도
+EventOutbox              # 이벤트/웹훅
+ReserveSnapshot          # 미사용 잔액/준비금
+ReconciliationRun        # 리컨실 실행
+3. Prisma 확장안
+현재 schema에 아래 모델들을 추가하는 방식이 좋습니다.
+
+3.1 LedgerEntry
+model LedgerEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  userId         String   @map("user_id") @db.Text
+  assetType      String   @default("PAYPOINT") @map("asset_type") @db.Text
+  entryType      String   @map("entry_type") @db.Text
+  amount         Decimal  @db.Decimal(30, 0)
+  balanceBefore  Decimal  @map("balance_before") @db.Decimal(30, 0)
+  balanceAfter   Decimal  @map("balance_after") @db.Decimal(30, 0)
+  receiptId      String?  @map("receipt_id") @db.Text
+  sourceType     String?  @map("source_type") @db.Text
+  sourceId       String?  @map("source_id") @db.Text
+  idempotencyKey String?  @map("idempotency_key") @db.Text
+  metadata       Json?    @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([accountId, createdAt])
+  @@index([userId, createdAt])
+  @@index([receiptId])
+  @@map("ledger_entries")
+}
+엔트리 타입:
+
+ISSUE
+EARN
+SPEND
+LOCK
+UNLOCK
+REDEEM
+REFUND
+EXPIRE
+ADJUST
+SETTLEMENT_DEBIT
+SETTLEMENT_CREDIT
+핵심 원칙:
+
+balance 직접 변경 금지
+모든 증감은 LedgerEntry를 통해서만 발생
+3.2 Receipt
+model Receipt {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Text
+  merchantId      String?  @map("merchant_id") @db.Text
+  agentId         String?  @map("agent_id") @db.Text
+  intentType      String   @map("intent_type") @db.Text
+  status          String   @db.Text
+  amount          Decimal  @db.Decimal(30, 0)
+  assetType       String   @default("PAYPOINT") @map("asset_type") @db.Text
+  policyDecision  Json?    @map("policy_decision") @db.JsonB
+  settlementRoute Json?    @map("settlement_route") @db.JsonB
+  metadata        Json?    @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([merchantId, createdAt])
+  @@index([agentId, createdAt])
+  @@map("receipts")
+}
+상태:
+
+CREATED
+POLICY_CHECKED
+AUTHORIZED
+LOCKED
+EXECUTING
+COMPLETED
+SETTLEMENT_PENDING
+SETTLED
+FAILED
+REVERSED
+REFUNDED
+DISPUTED
+EXPIRED
+3.3 ReceiptEvent
+model ReceiptEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  receiptId String  @map("receipt_id") @db.Uuid
+  type      String  @db.Text
+  payload   Json?   @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([receiptId, createdAt])
+  @@map("receipt_events")
+}
+이게 있으면 사용자/운영자 화면에서 “무슨 일이 일어났는지”를 타임라인으로 보여줄 수 있습니다.
+
+4. 상품권/게임머니/기프티콘 구조
+거래소처럼 만들면 위험합니다.
+초기에는 반드시 “교환/사용/redemption” 구조가 좋습니다.
+
+model CreditProduct {
+  id            String   @id @default(uuid()) @db.Uuid
+  provider      String   @db.Text
+  productType   String   @map("product_type") @db.Text
+  name          String   @db.Text
+  description   String?  @db.Text
+  faceValue     Decimal  @map("face_value") @db.Decimal(30, 0)
+  pricePaypoint Decimal  @map("price_paypoint") @db.Decimal(30, 0)
+  status        String   @default("ACTIVE") @db.Text
+  metadata      Json?    @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([provider, productType, status])
+  @@map("credit_products")
+}
+model CreditRedemption {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Text
+  productId      String    @map("product_id") @db.Uuid
+  receiptId      String?   @map("receipt_id") @db.Text
+  status         String    @db.Text
+  providerRef    String?   @map("provider_ref") @db.Text
+  codeEncrypted  String?   @map("code_encrypted") @db.Text
+  expiresAt      DateTime? @map("expires_at")
+  metadata       Json?     @db.JsonB
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@index([productId, status])
+  @@map("credit_redemptions")
+}
+상품 타입:
+
+GIFTICON
+ONLINE_VOUCHER
+OFFLINE_VOUCHER
+GAME_CREDIT
+CREATOR_PERK
+AI_USAGE_CREDIT
+API_CREDIT
+SUBSCRIPTION_CREDIT
+5. 신규 서비스 파일 구조
+현재:
+
+services/
+  account.ts
+  audit.ts
+  conversion.ts
+  exceptionsQueue.ts
+  idempotency.ts
+  issue.ts
+  policyWorkflow.ts
+  spend.ts
+여기에 추가:
+
+services/
+  ledger.ts
+  receipt.ts
+  receiptEvents.ts
+  productCatalog.ts
+  redemption.ts
+  policyDecision.ts
+  merchant.ts
+  merchantSettlement.ts
+  agentProfile.ts
+  agentBudget.ts
+  eventOutbox.ts
+  reserve.ts
+  reconciliation.ts
+6. 핵심 서비스 책임
+ledger.ts
+export async function appendLedgerEntry(params: {
+  userId: string
+  accountId: string
+  entryType: LedgerEntryType
+  amount: string
+  receiptId?: string
+  sourceType?: string
+  sourceId?: string
+  idempotencyKey?: string
+  metadata?: unknown
+})
+책임:
+
+1. 계정 row lock
+2. balanceBefore 계산
+3. balanceAfter 계산
+4. 음수 잔액 방지
+5. LedgerEntry 생성
+6. PaypointAccount balance 업데이트
+receipt.ts
+export async function createReceipt(params: {
+  userId: string
+  merchantId?: string
+  agentId?: string
+  intentType: string
+  amount: string
+  metadata?: unknown
+})
+책임:
+
+1. 결제 행동 단위 생성
+2. 상태 변경
+3. receipt event 기록
+4. 운영자/사용자 추적 가능하게 만들기
+redemption.ts
+export async function redeemProduct(params: {
+  userId: string
+  productId: string
+  idempotencyKey: string
+})
+흐름:
+
+idempotency check
+→ product 조회
+→ policy check
+→ receipt 생성
+→ ledger spend
+→ provider mock 발급
+→ redemption 생성
+→ receipt completed
+→ event outbox 발행
+policyDecision.ts
+export async function evaluateSpendPolicy(params: {
+  userId: string
+  amount: string
+  category?: string
+  merchantId?: string
+  agentId?: string
+})
+결과:
+
+{
+  allowed: boolean
+  reason?: string
+  requiresApproval?: boolean
+  appliedPolicyVersion: string
+}
+7. API 라우트 추가
+현재 routes/paypoint.ts, routes/admin.ts가 있으므로 다음처럼 추가합니다.
+
+routes/
+  paypoint.ts
+  admin.ts
+  credits.ts
+  receipts.ts
+  merchants.ts
+  agents.ts
+  webhooks.ts
+credits.ts
+GET  /v1/credits/products
+GET  /v1/credits/products/:id
+POST /v1/credits/redeem
+GET  /v1/credits/redemptions
+GET  /v1/credits/redemptions/:id
+receipts.ts
+GET /v1/receipts/:id
+GET /v1/receipts/:id/events
+agents.ts
+POST /v1/agents
+POST /v1/agents/:agentId/budgets
+GET  /v1/agents/:agentId/budgets
+POST /v1/agents/:agentId/spend
+merchants.ts
+GET /v1/merchants/me/receipts
+GET /v1/merchants/me/settlements
+POST /v1/merchants/webhook/test
+8. 사용자 앱 화면 추가
+현재 이미 Store.tsx가 있습니다.
+이걸 강화하면 됩니다.
+
+Store.tsx
+- 상품권/기프티콘/게임머니/AI 크레딧 카탈로그
+- 카테고리 필터
+- 잔액 부족 표시
+- 교환하기 버튼
+- 발급 상태 표시
+추가 화면:
+
+Redemptions.tsx
+- 내가 교환한 상품
+- 코드 보기
+- 사용 가능/사용 완료/만료
+
+ReceiptDetail.tsx
+- 포인트 차감
+- 상품 발급
+- 정산 상태
+- 환불 가능 여부
+
+AgentBudgets.tsx
+- 에이전트별 사용 한도
+- 오늘 사용량
+- 차단 내역
+9. 운영자 콘솔 화면 추가
+현재 운영자 콘솔은 좋은 출발점입니다.
+여기에 아래를 붙이면 됩니다.
+
+Products.tsx
+- 상품권/게임머니/AI 크레딧 등록
+- 가격
+- 공급사
+- 상태
+
+Redemptions.tsx
+- 발급 요청
+- 성공/실패
+- provider ref
+- 재처리
+
+Receipts.tsx
+- 결제 행동 전체 추적
+- 상태별 필터
+- 실패 원인
+
+Reserve.tsx
+- 총 미사용 포인트
+- 발행량
+- 사용량
+- 별도관리 대상
+- 리컨실 상태
+
+Reconciliation.tsx
+- 일별 대사
+- 차이 발생 항목
+- 예외 큐 연결
+10. Event Outbox 추가
+초기에는 Kafka 없이 DB Outbox가 가장 현실적입니다.
+
+model EventOutbox {
+  id          String    @id @default(uuid()) @db.Uuid
+  eventType   String    @map("event_type") @db.Text
+  aggregateId String    @map("aggregate_id") @db.Text
+  payload     Json      @db.JsonB
+  status      String    @default("PENDING") @db.Text
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@index([status, createdAt])
+  @@map("event_outbox")
+}
+이벤트명:
+
+paypoint.ledger.entry_created
+paypoint.receipt.created
+paypoint.receipt.completed
+paypoint.redemption.requested
+paypoint.redemption.fulfilled
+paypoint.conversion.requested
+paypoint.conversion.settled
+paypoint.policy.blocked
+paypoint.agent.spend_requested
+paypoint.exception.created
+11. Agent Budget 모델
+model AgentProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Text
+  name      String   @db.Text
+  status    String   @default("ACTIVE") @db.Text
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@map("agent_profiles")
+}
+model AgentBudget {
+  id              String   @id @default(uuid()) @db.Uuid
+  agentId         String   @map("agent_id") @db.Uuid
+  userId          String   @map("user_id") @db.Text
+  dailyLimit      Decimal  @map("daily_limit") @db.Decimal(30, 0)
+  monthlyLimit    Decimal  @map("monthly_limit") @db.Decimal(30, 0)
+  allowedCategories Json?  @map("allowed_categories") @db.JsonB
+  allowedMerchants  Json?  @map("allowed_merchants") @db.JsonB
+  status          String   @default("ACTIVE") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([agentId, status])
+  @@index([userId, status])
+  @@map("agent_budgets")
+}
+이게 생기면 PayPoint는 단순 포인트가 아니라:
+
+AI에게 돈 쓸 권한을 제한적으로 위임하는 런타임
+이 됩니다.
+
+12. Stablecoin Settlement Adapter
+초기에는 실제 온체인 전송을 하지 않아도 됩니다.
+인터페이스만 먼저 고정합니다.
+
+export interface SettlementAdapter {
+  quote(input: SettlementQuoteInput): Promise<SettlementQuote>
+  execute(input: SettlementExecuteInput): Promise<SettlementResult>
+  getStatus(ref: string): Promise<SettlementStatus>
+}
+구현체:
+
+MockSettlementAdapter
+GifticonSettlementAdapter
+GameCreditProviderAdapter
+StablecoinSettlementAdapter
+BankTransferAdapter
+중요한 건 사용자 UX에 stablecoin을 노출하지 않는 것입니다.
+
+13. 첫 번째 개발 티켓 묶음
+바로 실행 가능한 태스크는 다음입니다.
+
+T1. Prisma schema에 LedgerEntry, Receipt, ReceiptEvent 추가
+T2. migration 생성
+T3. ledger.ts 생성
+T4. receipt.ts 생성
+T5. 기존 issue.ts/spend.ts에 ledger/receipt 기록 추가
+T6. /v1/receipts/:id API 추가
+T7. operator-console에 Receipts.tsx 추가
+T8. saum-webapp에 ReceiptDetail.tsx 추가
+그 다음:
+
+T9. CreditProduct, CreditRedemption 추가
+T10. productCatalog.ts/redemption.ts 생성
+T11. /v1/credits/products, /v1/credits/redeem 추가
+T12. Store.tsx를 실제 redeem 흐름으로 연결
+T13. operator-console Products/Redemptions 추가
+그 다음:
+
+T14. EventOutbox 추가
+T15. eventOutbox.ts 생성
+T16. 주요 서비스에서 이벤트 발행
+T17. webhook worker 또는 polling worker 추가
+그 다음:
+
+T18. AgentProfile, AgentBudget 추가
+T19. agents.ts 라우트 추가
+T20. agent-sdk 패키지 추가
+T21. AgentBudgets.tsx 화면 추가
+14. 최종 코드베이스 목표
+최종적으로는 이렇게 보이면 좋습니다.
+
+paypoint/
+  apps/
+    paypoint-api/
+    saum-webapp/
+    operator-console/
+    merchant-console/
+    docs-site/
+
+  packages/
+    paypoint-domain/
+    paypoint-sdk/
+    agent-sdk/
+    settlement-adapters/
+    policy-engine/
+    ui-kit/
+
+  workers/
+    event-worker/
+    reconciliation-worker/
+    settlement-worker/
+
+  docs/
+    openapi.yaml
+    architecture.md
+    ledger.md
+    policy-engine.md
+    agent-runtime.md
+    settlement-adapters.md
+이 방향으로 가면 PayPoint는:
+
+포인트 앱
+→ 상품권/게임머니 교환 시스템
+→ 크리에이터/가맹점 정산 시스템
+→ AI agent spending runtime
+→ stablecoin-compatible programmable credit infrastructure
+로 자연스럽게 확장됩니다.
+
+
+계속
+
+몇 초 동안 생각함
+좋습니다. 다음 단계는 실제 구현 우선순위 + 코드 모듈별 상세 기능 정의로 가면 됩니다.
+
+15. PayPoint v1 개발 목표
+v1은 이렇게 정의하는 게 좋습니다.
+
+포인트를 적립·사용·교환하고, 모든 흐름을 원장·영수증·정책·감사 로그로 추적하는 Programmable Credit MVP
+
+즉, v1에서 반드시 보여줘야 하는 것은 5개입니다.
+
+1. 포인트 잔액
+2. 상품권/기프티콘/게임머니 교환
+3. Receipt 기반 사용 내역
+4. 운영자 승인/예외 처리
+5. 정산/준비금 대시보드 기초
+AI agent와 stablecoin은 v1에서 완전 구현하지 않아도 됩니다.
+다만 인터페이스와 narrative는 반드시 심어둬야 합니다.
+
+16. v1 폴더 구조
+현재 구조를 크게 흔들지 않고 이렇게 확장합니다.
+
+apps/paypoint-api/src/
+  routes/
+    paypoint.ts
+    admin.ts
+    credits.ts
+    receipts.ts
+    agents.ts
+    merchants.ts
+
+  services/
+    account.ts
+    issue.ts
+    spend.ts
+    conversion.ts
+    idempotency.ts
+    audit.ts
+    policyWorkflow.ts
+    exceptionsQueue.ts
+
+    ledger.ts
+    receipt.ts
+    receiptEvents.ts
+    productCatalog.ts
+    redemption.ts
+    policyDecision.ts
+    eventOutbox.ts
+    reserve.ts
+    reconciliation.ts
+
+  adapters/
+    gifticon/
+      mockGifticonAdapter.ts
+      types.ts
+    gameCredit/
+      mockGameCreditAdapter.ts
+      types.ts
+    settlement/
+      mockSettlementAdapter.ts
+      stablecoinSettlementAdapter.ts
+      types.ts
+
+  workers/
+    eventOutboxWorker.ts
+    reconciliationWorker.ts
+17. 핵심 실행 흐름
+포인트 적립
+POST /v1/paypoint/issue
+
+1. idempotency 확인
+2. account 조회/생성
+3. policy 확인
+4. receipt 생성
+5. ledger entry 생성
+6. balance 증가
+7. audit log 기록
+8. event outbox 기록
+포인트 사용
+POST /v1/paypoint/spend
+
+1. idempotency 확인
+2. account 조회
+3. policyDecision 평가
+4. receipt 생성
+5. ledger spend 기록
+6. balance 차감
+7. receipt completed
+8. event 발행
+상품권 교환
+POST /v1/credits/redeem
+
+1. 상품 조회
+2. 잔액 확인
+3. 정책 확인
+4. receipt 생성
+5. ledger spend
+6. 외부 provider mock 호출
+7. redemption 생성
+8. receipt completed
+9. 사용자에게 코드 제공
+10. 운영자 콘솔에 표시
+이게 v1의 가장 중요한 데모 흐름입니다.
+
+18. Product Catalog 설계
+상품권, 기프티콘, 게임머니, AI 크레딧을 하나의 모델로 묶습니다.
+
+CreditProduct
+- GIFTICON
+- ONLINE_VOUCHER
+- OFFLINE_VOUCHER
+- GAME_CREDIT
+- CREATOR_PERK
+- AI_USAGE_CREDIT
+- API_CREDIT
+초기 화면에서는 이렇게 나누면 좋습니다.
+
+스토어
+  전체
+  카페/편의점
+  게임머니
+  크리에이터 후원권
+  AI 크레딧
+  온라인 상품권
+사용자에게는 “포인트로 교환”입니다.
+내부적으로는 CreditRedemption입니다.
+
+19. Operator Console 핵심 화면
+운영자 콘솔은 반드시 “금융 운영자”처럼 보여야 합니다.
+
+Dashboard
+- 총 발행 포인트
+- 총 사용 포인트
+- 미사용 잔액
+- 오늘 교환 건수
+- 실패/예외 건수
+
+Receipts
+- 모든 결제 행동
+- 상태별 필터
+- 사용자/상품/가맹점 검색
+
+Products
+- 상품 등록
+- 가격 설정
+- 공급사 설정
+- 상태 ON/OFF
+
+Redemptions
+- 교환 요청
+- 발급 성공/실패
+- 재처리 버튼
+
+Reserve
+- 미사용 포인트 부채
+- 준비금/정산 버퍼
+- 리컨실 상태
+
+Policies
+- 사용 한도
+- 상품 카테고리 제한
+- 에이전트 사용 제한
+20. 사용자 앱 핵심 화면
+사용자 앱은 기술을 숨겨야 합니다.
+
+Home
+- 사용 가능 포인트
+- 오늘 받은 포인트
+- 최근 사용
+- 추천 교환 상품
+
+Store
+- 기프티콘
+- 상품권
+- 게임머니
+- AI 크레딧
+- 크리에이터 후원권
+
+My Credits
+- 교환한 상품
+- 사용 가능 코드
+- 만료 예정
+
+Activity
+- 적립/사용/교환 내역
+- Receipt 상세
+
+Agent Budget
+- 나중에 노출
+- AI에게 허용한 예산
+초기 UX 문구는 이렇게 가면 좋습니다.
+
+“포인트를 필요한 디지털 크레딧으로 바꾸세요.”
+“기프티콘, 게임머니, AI 크레딧까지 하나의 잔액으로.”
+“복잡한 정산은 PayPoint가 처리합니다.”
+21. Merchant / Creator 확장
+v1.5부터 붙이면 됩니다.
+
+merchant-console/
+  Dashboard
+  Receipts
+  Settlements
+  Products
+  Webhooks
+크리에이터용이면:
+
+Creator Console
+- 받은 포인트
+- 후원 내역
+- 정산 예정 금액
+- 팬 리워드
+- 멤버십 크레딧
+이건 Oven, CHZZK, 스트리머 후원 시스템과 매우 잘 붙습니다.
+
+22. Agent SDK는 이렇게 시작
+초기에는 단순 SDK로 충분합니다.
+
+import { PayPointAgent } from "@paypoint/agent-sdk"
+
+const agent = new PayPointAgent({
+  apiKey: process.env.PAYPOINT_API_KEY,
+  agentId: "agent_customer_support_001",
+})
+
+await agent.spend({
+  userId: "user_123",
+  amount: "3000",
+  purpose: "buy_ai_credit",
+  merchantId: "ai_tool_vendor",
+  idempotencyKey: "task_abc_001",
+})
+핵심은 이겁니다.
+
+AI가 돈을 쓰는 게 아니라,
+사용자가 허용한 정책 안에서만 credit action을 수행한다.
+23. Stablecoin 연결은 v2에서 Adapter로
+초기부터 실제 전송하지 않아도 됩니다.
+
+먼저 인터페이스만 고정합니다.
+
+export interface SettlementAdapter {
+  quote(input: {
+    amount: string
+    currency: string
+    targetRail: "BANK" | "STABLECOIN" | "VOUCHER"
+  }): Promise<SettlementQuote>
+
+  execute(input: {
+    receiptId: string
+    amount: string
+    route: SettlementRoute
+  }): Promise<SettlementResult>
+
+  getStatus(ref: string): Promise<SettlementStatus>
+}
+구현체:
+
+MockSettlementAdapter
+BankSettlementAdapter
+StablecoinSettlementAdapter
+GifticonSettlementAdapter
+GameCreditAdapter
+사용자에게는 절대 “USDC로 정산됩니다”가 전면에 나오면 안 됩니다.
+
+외부 문구는:
+
+“Global settlement-ready”
+“Stablecoin-compatible backend”
+“Settlement rail abstraction”
+정도가 좋습니다.
+
+24. 테스트 케이스
+반드시 필요한 테스트입니다.
+
+Ledger
+- 잔액 부족 시 실패
+- 중복 idempotency key 재요청 시 동일 결과
+- spend 후 balance 정확히 감소
+- issue 후 balance 정확히 증가
+
+Receipt
+- spend 시 receipt 생성
+- 실패 시 FAILED 상태 기록
+- redemption 성공 시 COMPLETED
+- provider 실패 시 EXCEPTION 생성
+
+Policy
+- 일 한도 초과 차단
+- 특정 카테고리 차단
+- agent budget 초과 차단
+
+Redemption
+- 상품 상태 INACTIVE면 실패
+- 잔액 부족이면 실패
+- providerRef 저장
+- codeEncrypted 저장
+
+Reserve
+- 총 미사용 포인트 계산
+- 발행량/사용량/만료량 reconcile
+25. 제품 내러티브와 코드가 연결되는 지점
+이 프로젝트의 기술 내러티브는 코드 구조에서 나와야 합니다.
+
+Programmable Credit
+→ Policy Engine
+
+Receipt Graph
+→ Receipt + ReceiptEvent
+
+Settlement Abstraction
+→ SettlementAdapter
+
+Agentic Payment Runtime
+→ AgentProfile + AgentBudget + Agent SDK
+
+Global Standard
+→ Ledger + Reconciliation + Reserve Dashboard
+
+Voucher/GameMoney/Gifticon
+→ CreditProduct + CreditRedemption
+즉, 말뿐인 내러티브가 아니라 DB와 API에서 증명되어야 합니다.
+
+26. 1차 MVP 완성 정의
+아래가 되면 1차 MVP는 충분히 좋습니다.
+
+사용자
+- 포인트 확인 가능
+- 포인트 적립 가능
+- 포인트로 상품 교환 가능
+- 교환 내역 확인 가능
+- Receipt 상세 확인 가능
+
+운영자
+- 사용자 잔액 조회 가능
+- 상품 등록 가능
+- 교환 요청 조회 가능
+- 실패 건 재처리 가능
+- 총 미사용 잔액 확인 가능
+
+기술
+- LedgerEntry 기록
+- Receipt/ReceiptEvent 기록
+- Idempotency 적용
+- EventOutbox 기록
+- Mock provider adapter
+- OpenAPI 문서화
+이 상태만 되어도 단순 포인트 앱이 아니라, 꽤 설득력 있는 Programmable Credit Infrastructure MVP가 됩니다.
+
+
+계속
+
+27. 다음 구현 블록: 실제 패키지 설계
+이제 코드베이스는 아래처럼 패키지화하면 좋습니다.
+
+packages/
+  paypoint-domain/
+  paypoint-sdk/
+  agent-sdk/
+  policy-engine/
+  settlement-adapters/
+  event-schemas/
+  ui-kit/
+각 패키지 역할은 명확히 나눕니다.
+
+paypoint-domain
+- 타입
+- enum
+- amount validation
+- invariant
+- receipt status
+- ledger entry type
+
+policy-engine
+- spend policy 평가
+- agent budget 평가
+- product category rule
+- merchant rule
+
+settlement-adapters
+- gifticon adapter
+- game credit adapter
+- stablecoin mock adapter
+- bank mock adapter
+
+event-schemas
+- 이벤트 타입
+- webhook payload schema
+- outbox payload schema
+
+paypoint-sdk
+- 일반 사용자/가맹점 API client
+
+agent-sdk
+- AI agent 전용 spending client
+
+ui-kit
+- 버튼, 카드, 테이블, 상태 뱃지
+28. 도메인 enum 먼저 고정
+packages/paypoint-domain/src/types.ts에 아래 enum부터 고정하는 게 좋습니다.
+
+export type AssetType =
+  | "PAYPOINT"
+  | "CREATOR_CREDIT"
+  | "AI_CREDIT"
+  | "GAME_CREDIT"
+  | "VOUCHER_CREDIT"
+
+export type LedgerEntryType =
+  | "ISSUE"
+  | "EARN"
+  | "SPEND"
+  | "LOCK"
+  | "UNLOCK"
+  | "REDEEM"
+  | "REFUND"
+  | "EXPIRE"
+  | "ADJUST"
+  | "SETTLEMENT_DEBIT"
+  | "SETTLEMENT_CREDIT"
+
+export type ReceiptStatus =
+  | "CREATED"
+  | "POLICY_CHECKED"
+  | "AUTHORIZED"
+  | "LOCKED"
+  | "EXECUTING"
+  | "COMPLETED"
+  | "SETTLEMENT_PENDING"
+  | "SETTLED"
+  | "FAILED"
+  | "REVERSED"
+  | "REFUNDED"
+  | "DISPUTED"
+  | "EXPIRED"
+
+export type ProductType =
+  | "GIFTICON"
+  | "ONLINE_VOUCHER"
+  | "OFFLINE_VOUCHER"
+  | "GAME_CREDIT"
+  | "CREATOR_PERK"
+  | "AI_USAGE_CREDIT"
+  | "API_CREDIT"
+  | "SUBSCRIPTION_CREDIT"
+이걸 먼저 잡으면 API, DB, UI가 흔들리지 않습니다.
+
+29. 금액 처리 원칙
+포인트/상품권/게임머니는 절대 float 쓰면 안 됩니다.
+
+원칙:
+
+모든 amount는 string integer
+소수점 없음
+DB는 Decimal(30,0)
+프론트 표시만 포맷팅
+계산은 서버에서만
+예:
+
+export function assertIntegerAmount(amount: string) {
+  if (!/^[0-9]+$/.test(amount)) {
+    throw new Error("amount must be a positive integer string")
+  }
+
+  if (BigInt(amount) <= 0n) {
+    throw new Error("amount must be greater than zero")
+  }
+}
+30. Ledger 서비스 실제 구조
+apps/paypoint-api/src/services/ledger.ts
+
+import { prisma } from "../lib/prisma"
+
+export async function appendLedgerEntry(params: {
+  userId: string
+  accountId: string
+  entryType: string
+  amount: string
+  receiptId?: string
+  sourceType?: string
+  sourceId?: string
+  idempotencyKey?: string
+  metadata?: unknown
+}) {
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.paypointAccount.findUnique({
+      where: { id: params.accountId },
+    })
+
+    if (!account) {
+      throw new Error("account not found")
+    }
+
+    const before = BigInt(account.balance.toString())
+    const delta = BigInt(params.amount)
+
+    const isDebit = [
+      "SPEND",
+      "LOCK",
+      "REDEEM",
+      "EXPIRE",
+      "SETTLEMENT_DEBIT",
+    ].includes(params.entryType)
+
+    const after = isDebit ? before - delta : before + delta
+
+    if (after < 0n) {
+      throw new Error("insufficient balance")
+    }
+
+    const entry = await tx.ledgerEntry.create({
+      data: {
+        accountId: params.accountId,
+        userId: params.userId,
+        assetType: "PAYPOINT",
+        entryType: params.entryType,
+        amount: params.amount,
+        balanceBefore: before.toString(),
+        balanceAfter: after.toString(),
+        receiptId: params.receiptId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId,
+        idempotencyKey: params.idempotencyKey,
+        metadata: params.metadata as any,
+      },
+    })
+
+    await tx.paypointAccount.update({
+      where: { id: params.accountId },
+      data: { balance: after.toString() },
+    })
+
+    return entry
+  })
+}
+추후에는 account row lock을 더 엄밀하게 처리해야 하지만, MVP에서는 이 구조부터 시작해도 됩니다.
+
+31. Receipt 서비스 구조
+apps/paypoint-api/src/services/receipt.ts
+
+import { prisma } from "../lib/prisma"
+
+export async function createReceipt(params: {
+  userId: string
+  merchantId?: string
+  agentId?: string
+  intentType: string
+  amount: string
+  metadata?: unknown
+}) {
+  const receipt = await prisma.receipt.create({
+    data: {
+      userId: params.userId,
+      merchantId: params.merchantId,
+      agentId: params.agentId,
+      intentType: params.intentType,
+      status: "CREATED",
+      amount: params.amount,
+      assetType: "PAYPOINT",
+      metadata: params.metadata as any,
+    },
+  })
+
+  await prisma.receiptEvent.create({
+    data: {
+      receiptId: receipt.id,
+      type: "CREATED",
+      payload: {
+        intentType: params.intentType,
+        amount: params.amount,
+      },
+    },
+  })
+
+  return receipt
+}
+
+export async function updateReceiptStatus(params: {
+  receiptId: string
+  status: string
+  payload?: unknown
+}) {
+  const receipt = await prisma.receipt.update({
+    where: { id: params.receiptId },
+    data: { status: params.status },
+  })
+
+  await prisma.receiptEvent.create({
+    data: {
+      receiptId: params.receiptId,
+      type: params.status,
+      payload: params.payload as any,
+    },
+  })
+
+  return receipt
+}
+32. 상품 교환 서비스
+apps/paypoint-api/src/services/redemption.ts
+
+import { prisma } from "../lib/prisma"
+import { getOrCreateAccount } from "./account"
+import { createReceipt, updateReceiptStatus } from "./receipt"
+import { appendLedgerEntry } from "./ledger"
+
+export async function redeemProduct(params: {
+  userId: string
+  productId: string
+  idempotencyKey: string
+}) {
+  const product = await prisma.creditProduct.findUnique({
+    where: { id: params.productId },
+  })
+
+  if (!product || product.status !== "ACTIVE") {
+    throw new Error("product not available")
+  }
+
+  const account = await getOrCreateAccount(params.userId)
+
+  const receipt = await createReceipt({
+    userId: params.userId,
+    intentType: "CREDIT_REDEMPTION",
+    amount: product.pricePaypoint.toString(),
+    metadata: {
+      productId: product.id,
+      productType: product.productType,
+      provider: product.provider,
+    },
+  })
+
+  await updateReceiptStatus({
+    receiptId: receipt.id,
+    status: "AUTHORIZED",
+  })
+
+  await appendLedgerEntry({
+    userId: params.userId,
+    accountId: account.id,
+    entryType: "REDEEM",
+    amount: product.pricePaypoint.toString(),
+    receiptId: receipt.id,
+    sourceType: "CreditProduct",
+    sourceId: product.id,
+    idempotencyKey: params.idempotencyKey,
+  })
+
+  const mockCode = `MOCK-${Date.now()}`
+
+  const redemption = await prisma.creditRedemption.create({
+    data: {
+      userId: params.userId,
+      productId: product.id,
+      receiptId: receipt.id,
+      status: "FULFILLED",
+      providerRef: `mock_${receipt.id}`,
+      codeEncrypted: mockCode,
+      metadata: {
+        mock: true,
+      },
+    },
+  })
+
+  await updateReceiptStatus({
+    receiptId: receipt.id,
+    status: "COMPLETED",
+    payload: {
+      redemptionId: redemption.id,
+    },
+  })
+
+  return {
+    receipt,
+    redemption,
+  }
+}
+실서비스에서는 codeEncrypted를 반드시 암호화해야 합니다. MVP mock에서는 그대로 두되, 필드명은 미리 codeEncrypted로 잡아두는 게 좋습니다.
+
+33. credits 라우트
+apps/paypoint-api/src/routes/credits.ts
+
+import type { FastifyInstance } from "fastify"
+import { prisma } from "../lib/prisma"
+import { redeemProduct } from "../services/redemption"
+
+export async function creditsRoutes(app: FastifyInstance) {
+  app.get("/v1/credits/products", async () => {
+    return prisma.creditProduct.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+    })
+  })
+
+  app.get("/v1/credits/products/:id", async (req: any) => {
+    return prisma.creditProduct.findUnique({
+      where: { id: req.params.id },
+    })
+  })
+
+  app.post("/v1/credits/redeem", async (req: any) => {
+    const { userId, productId, idempotencyKey } = req.body
+
+    return redeemProduct({
+      userId,
+      productId,
+      idempotencyKey,
+    })
+  })
+
+  app.get("/v1/credits/redemptions", async (req: any) => {
+    const { userId } = req.query
+
+    return prisma.creditRedemption.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    })
+  })
+}
+나중에는 user JWT 기반으로 userId를 body에서 받지 않고 token에서 꺼내야 합니다.
+
+34. receipts 라우트
+import type { FastifyInstance } from "fastify"
+import { prisma } from "../lib/prisma"
+
+export async function receiptRoutes(app: FastifyInstance) {
+  app.get("/v1/receipts/:id", async (req: any) => {
+    return prisma.receipt.findUnique({
+      where: { id: req.params.id },
+    })
+  })
+
+  app.get("/v1/receipts/:id/events", async (req: any) => {
+    return prisma.receiptEvent.findMany({
+      where: { receiptId: req.params.id },
+      orderBy: { createdAt: "asc" },
+    })
+  })
+}
+35. app index 등록
+apps/paypoint-api/src/index.ts
+
+import { creditsRoutes } from "./routes/credits"
+import { receiptRoutes } from "./routes/receipts"
+
+await app.register(creditsRoutes)
+await app.register(receiptRoutes)
+36. 프론트 Store.tsx 방향
+사용자 화면에서는 이렇게 보여야 합니다.
+
+상단
+- 내 포인트
+- 오늘 쓸 수 있는 금액
+
+카테고리
+- 전체
+- 기프티콘
+- 게임머니
+- AI 크레딧
+- 크리에이터
+
+상품 카드
+- 이름
+- 가격
+- 교환하기
+- 발급 즉시 사용 가능 여부
+버튼 문구:
+
+교환하기
+바로 받기
+포인트로 사용
+금지 문구:
+
+구매
+투자
+수익
+환전
+거래
+37. 운영자 Products 화면
+운영자 화면에서는 아래 기능이 필요합니다.
+
+상품 등록
+- 이름
+- 공급사
+- 타입
+- 표시 가격
+- 포인트 가격
+- 상태
+
+상품 관리
+- 활성/비활성
+- 재고 있음/없음
+- 공급사 장애 표시
+
+교환 내역
+- 성공
+- 실패
+- 재시도
+- 사용자
+- receipt id
+38. v1에서 보여줄 데모 시나리오
+가장 좋은 데모는 이겁니다.
+
+1. 사용자가 PayPoint 10,000P 보유
+2. Store에서 5,000P 스타벅스 기프티콘 선택
+3. 교환하기 클릭
+4. Receipt 생성
+5. Ledger에 5,000P REDEEM 기록
+6. 기프티콘 코드 mock 발급
+7. 사용자 My Credits에 표시
+8. 운영자 콘솔 Receipts에서 전체 흐름 확인
+9. Reserve Dashboard에서 미사용 잔액 감소 확인
+이 데모 하나만 잘 보여도:
+
+“아, 이건 단순 포인트가 아니라 결제/정산 원장 시스템이구나”
+
+가 전달됩니다.
+
+39. 다음 단계 핵심
+이후 바로 붙일 것은:
+
+1. EventOutbox
+2. ReserveSnapshot
+3. AgentBudget
+4. SettlementAdapter
+이 4개입니다.
+
+특히 AgentBudget이 붙으면 narrative가 바뀝니다.
+
+포인트 앱
+→ AI에게 안전하게 예산을 위임하는 programmable credit runtime
+으로 보이기 시작합니다.
+
+
+계속, 크레딧 및 포인트로서의 정체성을 잃지 말고
+
+맞습니다. 핵심은 이겁니다.
+
+PayPoint는 “코인 지갑”이 아니라 “크레딧/포인트 시스템”이어야 합니다.
+
+스테이블코인, AI agent, settlement router는 뒤에 있어도 되지만, 제품 정체성은 끝까지:
+
+포인트
+크레딧
+사용권
+잔액
+혜택
+교환
+소비
+정산
+이어야 합니다.
+
+40. 제품 원칙 재정의
+PayPoint = Digital Credit Layer
+PayPoint ≠ Token Wallet
+PayPoint ≠ Exchange
+PayPoint ≠ Investment App
+PayPoint ≠ Yield Product
+사용자 언어는 이렇게 고정합니다.
+
+충전
+적립
+사용
+교환
+선물
+정산
+혜택
+멤버십
+잔액
+피해야 할 표현:
+
+매수
+매도
+스왑
+유동성 공급
+예치 수익
+토큰 가격
+출금
+환전
+거래소
+41. 코드에서도 정체성을 유지
+DB/도메인 이름도 “crypto”보다 “credit” 중심이 좋습니다.
+
+좋은 이름:
+
+CreditAccount
+CreditLedger
+CreditEntry
+CreditProduct
+CreditRedemption
+CreditPolicy
+CreditReceipt
+CreditReserve
+CreditSettlement
+현재 PaypointAccount, PaypointTransaction은 유지 가능하지만, 신규 모듈은 Credit* 네이밍이 더 좋습니다.
+
+42. Stablecoin은 내부 Adapter로만
+사용자 화면:
+
+포인트로 교환 완료
+정산 예정
+정산 완료
+내부 시스템:
+
+StablecoinSettlementAdapter
+BankSettlementAdapter
+VoucherSettlementAdapter
+즉, 외부 UX에서는 절대 “USDC로 바꿨습니다”가 중심이 되면 안 됩니다.
+
+43. AI Agent도 “크레딧 사용 권한”으로 표현
+AI agent를 전면에 내세우더라도 표현은:
+
+AI 예산
+자동 사용 한도
+위임 사용
+크레딧 사용 규칙
+자동 결제 승인
+이어야 합니다.
+
+피해야 할 표현:
+
+AI wallet
+AI token trader
+agent swaps
+autonomous crypto wallet
+44. 사용자 UX 구조
+내 포인트
+- 사용 가능 포인트
+- 적립 예정 포인트
+- 만료 예정 포인트
+
+포인트 쓰기
+- 기프티콘
+- 상품권
+- 게임머니
+- 크리에이터 후원권
+- AI 크레딧
+
+내 사용 내역
+- 적립
+- 사용
+- 교환
+- 환불
+- 만료
+
+자동 사용 설정
+- 월 한도
+- 카테고리 제한
+- 승인 필요 금액
+이러면 “포인트/크레딧” 정체성이 유지됩니다.
+
+45. 핵심 포지셔닝 문장
+PayPoint는 포인트와 크레딧을 더 안전하고 유연하게 쓰게 해주는 디지털 크레딧 인프라입니다.
+조금 더 글로벌하게는:
+
+PayPoint is a programmable credit infrastructure for digital spending, rewards, and settlement.
+46. 최종 방향
+PayPoint의 정체성은:
+
+Front: Credit / Point / Reward / Voucher
+Core: Ledger / Policy / Receipt / Reserve
+Back: Settlement / Stablecoin / Bank / Partner Rails
+Future: Agent Budget / Automated Spending
+이 구조가 가장 좋습니다.
+
+즉:
+
+앞에서는 끝까지 포인트처럼 쉽고, 뒤에서는 글로벌 정산 인프라처럼 강해야 합니다.
+
+
+계속
+
+2초 동안 생각함
+계속 이어가면, PayPoint는 이렇게 고정하는 게 좋습니다.
+
+47. PayPoint의 정체성 고정
+PayPoint는 다음 중 하나가 아닙니다.
+
+코인 지갑 아님
+거래소 아님
+스왑 서비스 아님
+투자 상품 아님
+수익형 예치 서비스 아님
+PayPoint는 다음입니다.
+
+디지털 포인트
+소비 크레딧
+혜택 잔액
+사용권
+교환권
+정산 가능한 소비 단위
+한 문장으로는:
+
+PayPoint는 사람들이 포인트처럼 쉽게 쓰고, 기업은 정산·정책·리컨실까지 관리할 수 있는 programmable credit infrastructure입니다.
+
+48. 제품 카피 기준
+사용자용:
+
+내 포인트를 더 쓸모 있게.
+기프티콘, 상품권, 게임머니, AI 크레딧까지 하나의 포인트로.
+쌓고, 쓰고, 교환하고, 관리하세요.
+가맹점/파트너용:
+
+포인트 발행부터 사용, 교환, 정산까지 한 번에 관리하는 크레딧 인프라.
+개발자용:
+
+포인트·리워드·디지털 크레딧을 API로 발행하고, 사용하고, 정산하는 programmable credit API.
+AI/미래 서사:
+
+사람과 AI가 함께 사용할 수 있는 안전한 크레딧 사용 권한 시스템.
+49. 기능 이름도 포인트 중심으로
+나쁜 이름:
+
+Swap
+Liquidity Pool
+Token Bridge
+Yield
+Stake
+Withdraw
+Crypto Settlement
+좋은 이름:
+
+포인트 쓰기
+포인트 교환
+크레딧 전환
+혜택 받기
+자동 사용 설정
+정산 상태
+준비금 현황
+사용 한도
+50. 서비스 메뉴 구조
+홈
+- 내 포인트
+- 이번 달 받은 포인트
+- 만료 예정 포인트
+- 추천 교환처
+
+포인트 쓰기
+- 기프티콘
+- 상품권
+- 게임머니
+- 크리에이터 후원권
+- AI 크레딧
+
+내 크레딧
+- 보유한 교환권
+- 사용 가능 코드
+- 사용 완료
+- 만료 예정
+
+사용 내역
+- 적립
+- 사용
+- 교환
+- 환불
+- 만료
+
+자동 사용 설정
+- 월 한도
+- 카테고리 제한
+- 승인 필요 금액
+- AI 자동 사용 허용 여부
+
+고객센터
+- 환불
+- 오류 신고
+- 사용처 문의
+51. 운영자 콘솔도 “금융/정산”보다 “포인트 운영”으로 시작
+대시보드
+- 총 발행 포인트
+- 총 사용 포인트
+- 미사용 포인트
+- 만료 예정 포인트
+- 교환 요청 수
+- 실패/예외 건수
+
+포인트 운영
+- 수동 지급
+- 차감
+- 환불
+- 만료 처리
+
+상품 관리
+- 기프티콘
+- 상품권
+- 게임머니
+- AI 크레딧
+- 크리에이터 리워드
+
+정책 관리
+- 지급 정책
+- 사용 한도
+- 만료 정책
+- 카테고리 제한
+- 자동 사용 규칙
+
+정산/준비금
+- 미사용 포인트 부채
+- 제휴사 정산
+- 준비금 현황
+- 리컨실 결과
+52. 코드 네이밍 권장
+가능하면 신규 모듈은 이렇게 가는 게 좋습니다.
+
+CreditLedger
+CreditReceipt
+CreditProduct
+CreditRedemption
+CreditPolicy
+CreditReserve
+CreditSettlement
+CreditBudget
+Stablecoin, Token, Swap은 adapter 내부에서만 씁니다.
+
+내부 adapter:
+StablecoinSettlementAdapter
+
+외부 API:
+CreditSettlement
+53. 핵심 아키텍처
+User / Partner / Agent
+        ↓
+Credit API
+        ↓
+Credit Ledger
+        ↓
+Policy Engine
+        ↓
+Credit Receipt
+        ↓
+Redemption / Usage / Settlement
+        ↓
+Reserve & Reconciliation
+가장 중요한 건:
+
+사용자는 포인트를 쓴다. 시스템은 크레딧 원장을 처리한다. 뒤에서는 필요한 정산 수단을 선택한다.
+
+54. v1 제품 정의
+v1은 이렇게 정의하면 됩니다.
+
+PayPoint v1은 포인트를 발행·사용·교환하고, 모든 사용 흐름을 원장·영수증·정책·운영 콘솔로 관리하는 디지털 크레딧 운영 시스템입니다.
+
+v1에서 꼭 필요한 기능:
+
+포인트 발행
+포인트 사용
+포인트 교환
+상품권/기프티콘 mock 발급
+사용 내역
+영수증 상세
+운영자 수동 조정
+정책 관리
+미사용 포인트 집계
+v2에서 붙일 기능:
+
+가맹점 정산
+크리에이터 후원권
+AI 자동 사용 한도
+Webhook
+Partner API
+Stablecoin-compatible settlement
+55. 최종 방향
+PayPoint의 가장 좋은 방향은:
+
+포인트처럼 쉽고, 크레딧처럼 유연하고, 정산 인프라처럼 안전한 시스템
+
+입니다.
+
+
