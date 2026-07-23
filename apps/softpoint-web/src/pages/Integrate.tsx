@@ -37,6 +37,16 @@ export default function Integrate() {
         <p className="integrate-diagram-caption">
           Issue · Earn · Spend · Redeem · Receipt
         </p>
+        <div className="integrate-diagram-row" style={{ marginTop: '1rem' }}>
+          <span className="integrate-box">SoftPay checkout</span>
+          <span className="integrate-arrow">→</span>
+          <span className="integrate-box accent">SETTLED webhook</span>
+          <span className="integrate-arrow">→</span>
+          <span className="integrate-box">SoftPoint SP+</span>
+        </div>
+        <p className="integrate-diagram-caption">
+          SoftPay loyalty only — SoftPG agent credit is separate
+        </p>
       </div>
 
       <div className="marketing-actions">

@@ -18,6 +18,10 @@ export interface EarnFromPaymentParams {
   orderId: string;
   merchantId?: string;
   idempotencyKey?: string;
+  /** SoftPay Intent id (loyalty earn — not SoftPG pi_) */
+  softpayIntentId?: string;
+  softpayDeliveryId?: string;
+  softpayEvent?: string;
 }
 
 export interface EarnFromPaymentResult {
@@ -68,6 +72,11 @@ export async function earnFromPayment(params: EarnFromPaymentParams): Promise<Ea
       merchant_id: merchantId ?? null,
       policy_id: policy.policyId,
       policy_version: policy.version,
+      // SoftPay loyalty linkage (never SoftPG pi_/rcpt_)
+      rail: params.softpayIntentId ? 'softpay' : 'partner',
+      softpay_intent_id: params.softpayIntentId ?? null,
+      softpay_delivery_id: params.softpayDeliveryId ?? null,
+      softpay_event: params.softpayEvent ?? null,
     },
   });
 

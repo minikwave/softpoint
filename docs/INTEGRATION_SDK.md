@@ -104,3 +104,15 @@ All methods return `{ data?, error? }` where `error` is `{ code, message }`.
 | Info | `/v1/paypoint/info` |
 
 See also [INTEGRATION_ONBOARDING.md](./INTEGRATION_ONBOARDING.md) and [DEPLOY.md](./DEPLOY.md).
+
+## SoftPay SETTLED → SP
+
+```ts
+await sp.earnFromSoftPaySettlement({
+  user_id: 'U1',
+  payment_amount: '10000',
+  softpay_intent_id: 'int_...',
+  merchant_id: 'claude-api-store',
+});
+// Prefer production webhook: POST /hooks/softpay (HMAC)
+```

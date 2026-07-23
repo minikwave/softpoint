@@ -71,10 +71,47 @@ export function createSoftPointClient(options: SoftPointClientOptions = {}) {
       order_id: string;
       merchant_id?: string;
       idempotency_key?: string;
+      softpay_intent_id?: string;
     }) {
       return request<{ skipped: boolean; reason?: string; paymentEarn?: PaymentEarnRes }>(
         '/v1/paypoint/earn/payment',
         { method: 'POST', body: JSON.stringify(body) }
+      );
+    },
+
+    /**
+     * SoftPay SETTLED → SoftPoint SP earn (pull). Prefer webhook `/hooks/softpay` in production.
+     * SoftPG agent credit is out of scope — do not pass SoftPG pi_/rcpt_ ids here.
+     */
+    earnFromSoftPaySettlement(body: {
+      user_id: string;
+      payment_amount: string;
+      softpay_intent_id: string;
+      merchant_id?: string;
+      idempotency_key?: string;
+    }) {
+      return this.earnFromPayment({
+        user_id: body.user_id,
+        payment_amount: body.payment_amount,
+        order_id: body.softpay_intent_id,
+        merchant_id: body.merchant_id,
+        idempotency_key: body.idempotency_key,
+        softpay_intent_id: body.softpay_intent_id,
+      });
+    },
+
+    getSoftPayHookInfo() {
+      return request<{
+        service: string;
+        enabled: boolean;
+        accepts: string[];
+        boundary: string;
+      }>('/hooks/softpay');
+    },
+
+    getOutboundEvents(limit = 50) {
+      return request<{ items: Array<Record<string, unknown>> }>(
+        `/v1/paypoint/events/outbound?limit=${limit}`
       );
     },
 

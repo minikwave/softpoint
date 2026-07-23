@@ -163,11 +163,20 @@ export interface MarketListingItem {
 export interface ApiInfoRes {
   service: string;
   version: string;
+  product?: string;
+  unit?: string;
   features: string[];
+  softpay?: {
+    earn_webhook?: string;
+    earn_enabled?: boolean;
+    loyalty_rail?: string;
+    note?: string;
+  };
   paths: {
     user: string;
     admin: string;
     health: string;
+    softpay_hook?: string;
   };
 }
 

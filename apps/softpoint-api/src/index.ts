@@ -4,6 +4,7 @@ import { paypointRoutes } from './routes/paypoint.js';
 import { creditRoutes } from './routes/credits.js';
 import { receiptRoutes } from './routes/receipts.js';
 import { adminRoutes } from './routes/admin.js';
+import { softpayWebhookRoutes } from './routes/softpayWebhook.js';
 import { userAuthPlugin } from './lib/userAuthPlugin.js';
 import { adminAuthPlugin } from './lib/adminAuthPlugin.js';
 import { registerRequestId } from './lib/requestId.js';
@@ -29,6 +30,14 @@ async function main() {
   }
 
   server.get('/health', async () => ({ status: 'ok', service: 'softpoint-api' }));
+
+  /** SoftPay webhook needs raw body for HMAC — encapsulate before JSON routes */
+  await server.register(async (scope) => {
+    scope.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+      done(null, body);
+    });
+    await scope.register(softpayWebhookRoutes);
+  });
 
   await server.register(
     async (scope) => {

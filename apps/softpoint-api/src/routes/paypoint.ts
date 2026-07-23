@@ -10,6 +10,8 @@ import { listEarnActivities, earnFromActivity } from '../services/earnActivities
 import { earnFromPayment } from '../services/paymentEarn.js';
 import { listMarketListings } from '../services/market.js';
 import { getPartnerSandboxInfo } from '../services/partner.js';
+import { listOutboundEvents } from '../services/eventOutbox.js';
+import { softPayEarnEnabled } from '../services/softpayEarnAdapter.js';
 import { prisma } from '../lib/prisma.js';
 
 const PARAM_USER_ID = 'user_id';
@@ -34,6 +36,14 @@ export async function paypointRoutes(
     return reply.send({
       service: 'softpoint-api',
       version: process.env['API_VERSION'] ?? '0.2.0',
+      product: 'SoftPoint',
+      unit: 'SP',
+      softpay: {
+        earn_webhook: '/hooks/softpay',
+        earn_enabled: softPayEarnEnabled(),
+        loyalty_rail: 'softpoint_sp',
+        note: 'SoftPay Pilot loyalty only — SoftPG agent credit is out of scope',
+      },
       features: [
         'balance',
         'issue',
@@ -45,13 +55,22 @@ export async function paypointRoutes(
         'conversion',
         'market-demo',
         'partner-sandbox',
+        'softpay-earn-webhook',
+        'event-outbox-stub',
       ],
       paths: {
         user: '/v1/paypoint',
         admin: '/v1/admin',
         health: '/health',
+        softpay_hook: '/hooks/softpay',
       },
     });
+  });
+
+  // GET /v1/paypoint/events/outbound — SoftPay linkage event stub (in-memory)
+  fastify.get<{ Querystring: { limit?: string } }>('/events/outbound', async (request, reply) => {
+    const limit = Math.min(Number.parseInt(request.query.limit ?? '50', 10) || 50, 100);
+    return reply.send({ items: listOutboundEvents(limit) });
   });
 
   // GET /v1/paypoint/partner/sandbox — 온보딩·샌드박스 메타 (P1-2 스텁)
@@ -111,7 +130,7 @@ export async function paypointRoutes(
     }
   });
 
-  // POST /v1/paypoint/earn/payment — 결제 완료 후 적립 (PG/POS 연동)
+  // POST /v1/paypoint/earn/payment — 결제 완료 후 적립 (파트너 pull · SoftPay Intent id 가능)
   fastify.post<{
     Body: {
       user_id: string;
@@ -119,6 +138,7 @@ export async function paypointRoutes(
       order_id: string;
       merchant_id?: string;
       idempotency_key?: string;
+      softpay_intent_id?: string;
     };
   }>('/earn/payment', async (request, reply) => {
     const body = request.body;
@@ -134,12 +154,15 @@ export async function paypointRoutes(
       });
     }
     try {
+      const softpayIntentId = body.softpay_intent_id?.trim() || undefined;
       const result = await earnFromPayment({
         userId: body.user_id,
         paymentAmount,
         orderId: body.order_id.trim(),
         merchantId: body.merchant_id,
         idempotencyKey: body.idempotency_key,
+        softpayIntentId,
+        softpayEvent: softpayIntentId ? 'earn.payment.softpay' : undefined,
       });
       const status = result.skipped ? 200 : 201;
       return reply.status(status).send(result);

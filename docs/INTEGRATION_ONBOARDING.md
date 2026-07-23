@@ -64,3 +64,15 @@ POST /v1/paypoint/conversion/request # 스테이블 정산 요청
 ## 7. 배포
 
 [DEPLOY.md](./DEPLOY.md) — Supabase · Railway · Vercel
+
+## SoftPay 연계 (로열티)
+
+SoftPay Pilot 결제 완료 후 SP를 적립합니다. SoftPG SoftAgent credit와는 별개입니다.
+
+1. SoftPoint에 `SOFTPAY_WEBHOOK_SECRET` 설정 (SoftPay `WEBHOOK_SECRET`과 동일)
+2. SoftPay webhook subscriber URL = SoftPoint `https://<api>/hooks/softpay`
+3. 이벤트: `settlement.completed` (권장)
+4. SDK pull: `earnFromSoftPaySettlement({ softpay_intent_id, ... })`
+5. SoftPay Runtime opt-in: `SOFTPOINT_API_URL` → SETTLED 후 fail-open earn
+
+문서: [SOFT_STACK_BOUNDARY.md](./SOFT_STACK_BOUNDARY.md)

@@ -26,6 +26,8 @@ export default function Developers() {
   const endpoints = [
     'GET /health',
     'GET /v1/paypoint/info',
+    'GET /hooks/softpay',
+    'POST /hooks/softpay',
     'GET /v1/paypoint/balance/:user_id',
     'POST /v1/paypoint/issue',
     'POST /v1/paypoint/earn/payment',
@@ -69,8 +71,17 @@ export default function Developers() {
       <h2 className="marketing-h2">{t('developers.auth')}</h2>
       <p className="marketing-p">{t('developers.authDetail')}</p>
 
-      <h2 className="marketing-h2">{t('developers.docsList')}</h2>
+      <h2 className="marketing-h2">SoftPay · SoftPG</h2>
+      <p className="marketing-p">
+        SoftPay Pilot 결제 SETTLED → SoftPoint SP 적립 (<code className="inline-code">POST /hooks/softpay</code>).
+        SoftPG SoftAgent credit (<code className="inline-code">pi_</code>/<code className="inline-code">rcpt_</code>)와는 분리됩니다.
+      </p>
       <ul className="marketing-list">
+        <li>
+          <a href={repoBlob('docs/SOFT_STACK_BOUNDARY.md')} target="_blank" rel="noreferrer">
+            Soft stack boundary (SoftPay / SoftPG)
+          </a>
+        </li>
         <li>
           <a href={repoBlob('docs/INTEGRATION_SDK.md')} target="_blank" rel="noreferrer">
             SDK integration guide
