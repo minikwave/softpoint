@@ -13,6 +13,7 @@ import { getPartnerSandboxInfo } from '../services/partner.js';
 import { listOutboundEvents } from '../services/eventOutbox.js';
 import { softPayEarnEnabled } from '../services/softpayEarnAdapter.js';
 import { prisma } from '../lib/prisma.js';
+import { resolveIdempotencyKey } from '../lib/idempotency-key.js';
 
 const PARAM_USER_ID = 'user_id';
 
@@ -58,12 +59,13 @@ export async function paypointRoutes(
         'softpay-earn-webhook',
         'event-outbox-stub',
         'idempotency-key-body',
+        'idempotency-key-header',
       ],
       idempotency: {
         body_field: 'idempotency_key',
         header_alias: 'Idempotency-Key',
-        header_status: 'documented_gap',
-        note: 'POST earn/spend/issue replay via Prisma idempotencyRecord — SoftPoint ≠ SoftPG',
+        header_status: 'present',
+        note: 'Header preferred, body fallback · Prisma idempotencyRecord replay — SoftPoint ≠ SoftPG',
         audit_doc: 'docs/IDEMPOTENCY_CROSS_AUDIT.md',
       },
       paths: {
@@ -118,7 +120,7 @@ export async function paypointRoutes(
         error: { code: 'INVALID_REQUEST', message: 'user_id and activity_slug required' },
       });
     }
-    const idempotencyKey = body.idempotency_key?.trim();
+    const idempotencyKey = resolveIdempotencyKey(request, body.idempotency_key);
     if (idempotencyKey) {
       const cached = await getIdempotentResponse(idempotencyKey);
       if (cached) return reply.send(cached);
@@ -168,7 +170,7 @@ export async function paypointRoutes(
         paymentAmount,
         orderId: body.order_id.trim(),
         merchantId: body.merchant_id,
-        idempotencyKey: body.idempotency_key,
+        idempotencyKey: resolveIdempotencyKey(request, body.idempotency_key),
         softpayIntentId,
         softpayEvent: softpayIntentId ? 'earn.payment.softpay' : undefined,
       });
@@ -294,7 +296,8 @@ export async function paypointRoutes(
     }
 
     const idempotencyKey =
-      body.idempotency_key ?? `spend:${body.user_id}:${body.order_id}`;
+      resolveIdempotencyKey(request, body.idempotency_key) ??
+      `spend:${body.user_id}:${body.order_id}`;
     const stored = await getIdempotentResponse(idempotencyKey);
     if (stored) {
       return reply.status(200).send(stored);

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { listCreditProducts, getCreditProductById } from '../services/productCatalog.js';
 import { redeemCreditProduct, listRedemptionsByUser } from '../services/redemption.js';
 import { getIdempotentResponse, setIdempotentResponse } from '../services/idempotency.js';
+import { resolveIdempotencyKey } from '../lib/idempotency-key.js';
 
 function toHttpError(err: unknown): { statusCode: number; code: string; message: string } {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
@@ -38,7 +39,8 @@ export async function creditRoutes(fastify: FastifyInstance, _opts: FastifyPlugi
   }>('/redeem', async (request, reply) => {
     const body = request.body;
     const idempotencyKey =
-      body.idempotency_key?.trim() || `redeem:${body.user_id}:${body.product_id}`;
+      resolveIdempotencyKey(request, body.idempotency_key) ||
+      `redeem:${body.user_id}:${body.product_id}`;
 
     const stored = await getIdempotentResponse(idempotencyKey);
     if (stored) {

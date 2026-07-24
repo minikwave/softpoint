@@ -1,4 +1,4 @@
-# SoftPoint — Idempotency cross-audit (Ownership Round2)
+# SoftPoint — Idempotency cross-audit (Ownership Round3)
 
 > Mode B · SoftPoint = earn / spend (별도 운영) · ≠ SoftPG credit  
 > **SSOT**: Company OS `ops/softblock/SOFT_FEATURE_OWNERSHIP_SSOT.md`  
@@ -8,10 +8,11 @@
 
 | Surface | Mechanism | Status |
 |---------|-----------|--------|
-| API body `idempotency_key` | `idempotency.ts` · Prisma `idempotencyRecord` upsert | **Present** (earn/activity · earn/payment · spend · issue paths) |
+| API body `idempotency_key` | `idempotency.ts` · Prisma `idempotencyRecord` upsert | **Present** (earn/activity · earn/payment · spend · redeem) |
+| HTTP `Idempotency-Key` header | `resolveIdempotencyKey` — header preferred, body fallback | **Present** (Round3) |
 | SoftPay SETTLED → earn | Hook `/hooks/softpay` · order_id keyed earn | Partial · production rail = Human |
 | SDK helpers | `spendIdempotencyKey` · `redeemIdempotencyKey` | Present |
-| HTTP `Idempotency-Key` header | SoftPay/SoftAgent style | **Gap** — body key only (documented; header alias = agent-next thin) |
+| `/info` honesty | `idempotency.header_status=present` | Present |
 
 ## Must
 
@@ -29,7 +30,7 @@
 
 | Field | Owner |
 |-------|-------|
-| `idempotency_key` | request |
+| `Idempotency-Key` / `idempotency_key` | request (header ≻ body) |
 | `order_id` | SoftPay SETTLED earn collision key |
 | `user_id` + activity_slug | activity earn |
 | stored `response` JSON | SoftPoint idempotency store |
