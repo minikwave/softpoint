@@ -57,7 +57,15 @@ export async function paypointRoutes(
         'partner-sandbox',
         'softpay-earn-webhook',
         'event-outbox-stub',
+        'idempotency-key-body',
       ],
+      idempotency: {
+        body_field: 'idempotency_key',
+        header_alias: 'Idempotency-Key',
+        header_status: 'documented_gap',
+        note: 'POST earn/spend/issue replay via Prisma idempotencyRecord — SoftPoint ≠ SoftPG',
+        audit_doc: 'docs/IDEMPOTENCY_CROSS_AUDIT.md',
+      },
       paths: {
         user: '/v1/paypoint',
         admin: '/v1/admin',

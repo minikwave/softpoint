@@ -1,6 +1,13 @@
 import { prisma } from '../lib/prisma.js';
 
 /**
+ * SoftPoint idempotency store (Ownership Round2).
+ * Body `idempotency_key` → replay stored response (earn/spend/issue).
+ * SoftPoint ≠ SoftPG · SoftLedger Execute Never · SoftPayAdapter ON = Human.
+ * Cross-audit: docs/IDEMPOTENCY_CROSS_AUDIT.md
+ */
+
+/**
  * Get stored response for idempotency key. Returns null if not found.
  */
 export async function getIdempotentResponse(key: string): Promise<unknown | null> {

@@ -1,6 +1,6 @@
 # SoftPoint — Soft* Feature Ownership
 
-> Mode B · Ownership Round · SoftPoint = earn / spend (별도 운영)  
+> Mode B · Ownership Round2 · SoftPoint = earn / spend (별도 운영)  
 > **SSOT**: Company OS `ops/softblock/SOFT_FEATURE_OWNERSHIP_SSOT.md`  
 > Path: `paypoint` folder · product SoftPoint · remote `minikwave/softpoint`
 
@@ -8,6 +8,7 @@
 
 - **리워드 · 크레딧** earn / spend · SoftPay SETTLED → earn webhook
 - SoftPay checkout SP mix (loyalty) — SoftPG credit **아님**
+- **Idempotency** body key store ([IDEMPOTENCY_CROSS_AUDIT.md](./IDEMPOTENCY_CROSS_AUDIT.md))
 
 ## Must NOT own
 
@@ -21,11 +22,20 @@
 SoftPay SETTLED → SoftPoint earn · SoftPoint ≠ SoftPG
 ```
 
+## FSM / audit (thin)
+
+| Stage | Field |
+|-------|-------|
+| earn/payment | `order_id` · `idempotency_key` · `payment_amount` (integer string) |
+| earn/activity | `activity_slug` · `idempotency_key` |
+| spend/issue | `idempotency_key` · stored response replay |
+
 ## Honesty
 
-`paper|mock|sandbox` · production earn rail / SSO = Human · SoftBlock GTM Visa Never
+`paper|mock|sandbox` · production earn rail / SSO = Human · SoftBlock GTM Visa Never · SoftLedger Execute Never
 
 ## Related
 
 - [SOFT_STACK_BOUNDARY.md](./SOFT_STACK_BOUNDARY.md)
 - [PAYPOINT_EARN_POLICY_AND_FLOW.md](./PAYPOINT_EARN_POLICY_AND_FLOW.md)
+- [IDEMPOTENCY_CROSS_AUDIT.md](./IDEMPOTENCY_CROSS_AUDIT.md)
